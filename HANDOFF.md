@@ -107,11 +107,12 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
   already landed in `db/helpers/001_authz.sql`. ← **NEXT (biggest)**
 - **Foundation module:** flesh out `infra/modules/aurora` + a VPC/networking base
   and the S3 tfstate backend so `terraform init/plan` runs.
-- **Wire the leak suite into CI** (GitHub Actions: `node --test` in `db/proof`) so
-  the backstop stays proven as the schema grows.
+- ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`; runs
+  `npm test` in `db/proof` on any `db/**` change). The backstop stays proven as
+  the schema grows.
 
-Recommended order: commit the proof → schema baseline → foundation module. The
-proof's helpers + policy shapes are the template the baseline should follow.
+Recommended order: schema baseline → foundation module. The proof's helpers +
+policy shapes are the template the baseline should follow.
 
 ## 7. Conventions & guardrails
 
