@@ -4,12 +4,30 @@
 export const ORG = {
   alpha: '0a1a0a1a-0000-0000-0000-000000000001',
   beta: '0b1b0b1b-0000-0000-0000-000000000001',
+  platform: '0f0f0f0f-0000-0000-0000-000000000001',
 };
 
 export const LOC = {
   alphaTower: '10c0a001-0000-0000-0000-000000000001',
   alphaAnnex: '10c0a001-0000-0000-0000-000000000002',
   betaPlaza: '10c0b001-0000-0000-0000-000000000001',
+};
+
+// Seeded domain rows (db/seed/dev.sql), used by the baseline test.
+export const DEVICE = {
+  alphaTower: 'de000a01-0000-0000-0000-000000000001',
+  alphaAnnex: 'de000a01-0000-0000-0000-000000000002',
+  betaPlaza: 'de000b01-0000-0000-0000-000000000001',
+};
+
+export const EVENT = {
+  alpha: 'e5e00a01-0000-0000-0000-000000000001',
+  beta: 'e5e00b01-0000-0000-0000-000000000001',
+};
+
+export const ASK = {
+  alpha: 'a5c00a01-0000-0000-0000-000000000001',
+  beta: 'a5c00b01-0000-0000-0000-000000000001',
 };
 
 export const USER = {

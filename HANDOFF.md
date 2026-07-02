@@ -50,6 +50,16 @@ The bridge pattern proven: `BEGIN; SET LOCAL ROLE stratos_resolver; SET LOCAL
 request.jwt.claims = '{…}'; <query>; COMMIT` — queried as a non-privileged role so
 RLS genuinely fires.
 
+**🟢 NEW — V1 baseline slice landed** (`db/V1_baseline.sql` + `db/seed/dev.sql`):
+the authored identity/org core (organizations, profiles, organization_members,
+locations, user_location_grants) + the events/asks domain (devices, events, asks,
+agent_runs), with full RLS read/write policies and the slice's SECURITY DEFINER
+RPCs (`self_serve_create_org`, `set_active_org`, `ingest_event`, `raise_ask`,
+`answer_ask`). Proven at the DB layer by `db/proof/baseline.test.mjs` (reads +
+RPC writes + tenant authz + RLS write backstop). Full suite: **22/22 green**
+(`cd db/proof && npm test`). CI (`.github/workflows/leak-suite.yml`) runs both
+suites on any `db/**` change. Not yet committed.
+
 Committed (root commit):
 
 ```
@@ -87,8 +97,8 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 ## 5. Build sequence (from ARCHITECTURE.md §10)
 
 1. **Foundation** — Terraform baseline; Aurora + `db/V1_baseline.sql`; prove RLS
-   fires from injected claims. ← *RLS-from-claims is ✅ proven in `db/proof`;
-   remaining: `V1_baseline.sql` + Terraform.*
+   fires from injected claims. ← *RLS-from-claims ✅ proven; `V1_baseline.sql`
+   core slice ✅ landed; remaining: Terraform + growing the schema surface.*
 2. **Identity** — Cognito + claim bridge; prove one RLS policy + one RPC E2E.
 3. **Vertical slice** — one domain (events/asks) fully through AppSync
    (query + mutation + subscription + authz). Validate before scaling.
@@ -102,17 +112,21 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 
 - ✅ **Claim-bridge proof** — DONE (`db/helpers` + `db/proof`, 10/10 green). This
   was the single biggest risk; it's retired. **First follow-up: commit it.**
-- **Schema baseline:** author `db/V1_baseline.sql` (structure + ~100
-  `SECURITY DEFINER` RPCs + all RLS policies), reusing the helper functions
-  already landed in `db/helpers/001_authz.sql`. ← **NEXT (biggest)**
+- ✅ **Schema baseline (core slice)** — DONE. `db/V1_baseline.sql` (identity +
+  events/asks) + `db/seed/dev.sql`, proven by `db/proof/baseline.test.mjs`.
+- **Grow the schema surface:** add the next domains to `V1_baseline.sql` (or split
+  into `db/migrations/`), each with RLS policies + RPCs + baseline-test coverage.
+  Reuse the org+location policy shapes already established. ← **NEXT**
 - **Foundation module:** flesh out `infra/modules/aurora` + a VPC/networking base
   and the S3 tfstate backend so `terraform init/plan` runs.
-- ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`; runs
-  `npm test` in `db/proof` on any `db/**` change). The backstop stays proven as
-  the schema grows.
+- **Vertical slice (step 3):** put AppSync + a Lambda resolver on top of the
+  events/asks baseline (query + mutation + subscription + authz) — the first
+  above-DB proof of the resolver→claim-bridge path.
+- ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`; runs the
+  suites on any `db/**` change).
 
-Recommended order: schema baseline → foundation module. The proof's helpers +
-policy shapes are the template the baseline should follow.
+Recommended order: grow schema / build the AppSync vertical slice on the
+events/asks core → foundation Terraform module.
 
 ## 7. Conventions & guardrails
 

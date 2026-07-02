@@ -9,12 +9,18 @@ migrations are forward-only.
 
 ```
 db/
-├── V1_baseline.sql     # authored baseline: tables + RPCs + RLS — TODO
+├── V1_baseline.sql     # ✅ authored baseline: identity + events/asks core (tables + RLS + RPCs)
 ├── migrations/         # forward-only migrations — TODO
+├── seed/
+│   └── dev.sql         # ✅ deterministic dev/demo/test seed for the baseline
 ├── helpers/            # RLS authz helpers (claim bridge, DB side)
 │   └── 001_authz.sql   # ✅ current_user_org(), is_platform_admin(), has_location_access()
-└── proof/              # ✅ claim-bridge cross-tenant leak proof (runnable)
+└── proof/              # ✅ runnable tests: claim-bridge leak proof + baseline slice
 ```
+
+## Apply order
+
+`helpers/001_authz.sql` → `V1_baseline.sql` → `seed/dev.sql` (dev/test only).
 
 ## Notes
 
@@ -25,10 +31,11 @@ db/
 
 ## Status
 
-🟢 **Claim bridge proven.** `helpers/001_authz.sql` +
-[`proof/`](proof/) demonstrate that RLS still enforces tenant isolation when a
-Lambda resolver injects Cognito claims by hand (both app-layer-on and
-app-layer-bypassed modes). Run it: `cd proof && npm install && npm test`.
+🟢 **Claim bridge proven + baseline slice landed.** `helpers/001_authz.sql`,
+`V1_baseline.sql` (identity + events/asks core), and `seed/dev.sql` are exercised
+by two runnable suites in [`proof/`](proof/): the cross-tenant leak proof and the
+baseline vertical slice (reads + RPC writes + authz + RLS write backstop).
+Run: `cd proof && npm install && npm test` → 22/22.
 
-🟠 **Next:** author the full `V1_baseline.sql` (structure + ~100 RPCs + all RLS
-policies) — step 1 of the build sequence.
+🟠 **Next:** grow `V1_baseline.sql` domain-by-domain toward the full surface
+(~100 tables + RPCs), each covered by the suites.
