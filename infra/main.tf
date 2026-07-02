@@ -57,7 +57,12 @@ module "stepfunctions" {
 }
 
 module "edge" {
-  source      = "./modules/edge"
-  environment = var.environment
-  domain      = var.domain
+  source              = "./modules/edge"
+  environment         = var.environment
+  domain              = var.domain
+  acm_certificate_arn = var.acm_certificate_arn
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
 }

@@ -1,7 +1,8 @@
 # Copy to clients/<env>.tfvars and fill. Real *.tfvars are gitignored.
 environment            = "dev"
 region                 = "us-east-1"
-domain                 = "dev.stratos.example"
+domain                 = "" # e.g. dev.stratos.example (requires acm_certificate_arn)
+acm_certificate_arn    = "" # ACM cert in us-east-1 for `domain`
 vpc_cidr               = "10.20.0.0/16"
 db_min_capacity        = "0.5"
 db_max_capacity        = "4"

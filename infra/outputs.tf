@@ -42,3 +42,17 @@ output "migrate_lambda_name" {
   description = "Invoke this to apply db/ migrations to Aurora."
   value       = module.lambda.migrate_name
 }
+
+output "spa_bucket" {
+  description = "S3 bucket to sync the built web/ SPA into."
+  value       = module.edge.spa_bucket
+}
+
+output "spa_url" {
+  description = "CloudFront domain serving the SPA."
+  value       = "https://${module.edge.distribution_domain_name}"
+}
+
+output "cloudfront_distribution_id" {
+  value = module.edge.distribution_id
+}

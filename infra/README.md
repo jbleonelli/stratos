@@ -56,6 +56,10 @@ terraform apply -var-file=clients/dev.tfvars
 # 3. apply the DB schema to Aurora (idempotent). Add {"applySeed":true} for dev.
 aws lambda invoke --function-name "$(terraform output -raw migrate_lambda_name)" \
   --payload '{"applySeed":true}' --cli-binary-format raw-in-base64-out /dev/stdout
+
+# 4. build + publish the SPA (see web/README.md)
+cd ../web && npm ci && npm run build
+aws s3 sync dist/ "s3://$(cd ../infra && terraform output -raw spa_bucket)/" --delete
 ```
 
 Offline check (no AWS creds needed):

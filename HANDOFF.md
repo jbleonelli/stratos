@@ -90,8 +90,17 @@ seed gated by `applySeed`); `api/src/pg-client.mjs` now builds its connection fr
 the Secrets Manager secret at cold start (genuinely deployable). `V1_baseline.sql`
 grants `stratos_resolver` to the connecting master role so `SET ROLE` works.
 The events/asks slice is now deployable **end-to-end**. API suite **18/18 green**;
-DB suite **22/22**; `terraform validate` passes (root + bootstrap). Not yet
-committed.
+DB suite **22/22**; `terraform validate` passes (root + bootstrap).
+
+**🟢 NEW — edge delivery + web SPA landed**: `infra/modules/edge` (private S3
+origin + CloudFront with OAC + WAFv2 managed rules & rate limit; us-east-1
+provider alias for the CloudFront-scoped WAF/ACM) and `web/` — a React + Vite +
+TypeScript SPA. Cognito sign-in via the Amplify Authenticator; an events/asks
+dashboard (raise/answer asks, ingest events) over the AppSync GraphQL endpoint
+with live subscriptions. All data access goes through React Query hooks in
+`web/src/queries/` over a single Amplify seam (`web/src/api/client.ts`).
+`web` build (typecheck + Vite) passes; `terraform validate` passes with edge.
+Not yet committed.
 
 Committed (root commit):
 
@@ -167,21 +176,24 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 - ✅ **Resolver on AWS + migration path** — DONE. `infra/modules/{lambda,appsync}`
   deploy the resolver behind Cognito-authed AppSync; `api/src/migrate.mjs` applies
   the `db/` schema to Aurora (tracked, idempotent, seed-gated).
+- ✅ **Edge + web SPA** — DONE. `infra/modules/edge` (S3 + CloudFront + WAF) and
+  `web/` (React/Vite SPA: Cognito auth + events/asks dashboard over AppSync).
 - **Live smoke test on real AWS:** `terraform apply` a `dev` stack, invoke the
-  migrate Lambda with `applySeed`, then exercise the GraphQL endpoint with a
-  Cognito user and confirm tenant isolation end-to-end. ← **NEXT**
-- **Edge module:** `infra/modules/edge` (S3 + CloudFront + WAF) to serve the SPA,
-  then build the `web/` frontend against the GraphQL endpoint.
+  migrate Lambda with `applySeed`, publish the SPA to the edge bucket, then sign
+  in and confirm the dashboard + tenant isolation end-to-end. ← **NEXT**
+- **CI hardening:** add `terraform fmt -check`/`validate` and the `api`/`web`
+  builds to `.github/workflows` so infra + bundles are gated too.
 - **Grow the domain:** extend `db/V1_baseline.sql` (or `db/migrations/`) +
-  `api/schema.graphql` + the resolver dispatch, each covered by the suites.
+  `api/schema.graphql` + the resolver dispatch + `web/` hooks, each covered by
+  the suites.
 - **Grow the schema surface:** add the next domains to `V1_baseline.sql` (or split
   into `db/migrations/`), each with RLS policies + RPCs + baseline-test coverage,
   and extend `api/schema.graphql` + the resolver to match.
 - ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`, workflow
   `ci`; runs the DB + API suites on any `db/**` or `api/**` change).
 
-Recommended order: live smoke test on a real `dev` stack → edge module + `web/`
-SPA → grow schema/resolver domain-by-domain.
+Recommended order: live smoke test on a real `dev` stack (apply + migrate +
+publish SPA) → CI hardening → grow schema/resolver/UI domain-by-domain.
 
 ## 7. Conventions & guardrails
 

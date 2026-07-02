@@ -8,16 +8,60 @@ testable in isolation.
 
 | Concern | Choice |
 | --- | --- |
-| Auth client | Cognito (Amplify Auth or oidc-client) |
-| Data client | GraphQL client (Amplify / urql / Apollo) → AppSync |
-| Realtime | AppSync subscriptions |
+| Auth client | Cognito via `aws-amplify` (`@aws-amplify/ui-react` Authenticator) |
+| Data client | Amplify GraphQL client → AppSync (`userPool` auth mode) |
+| Realtime | AppSync subscriptions (`onAskRaised`, `onEventIngested`) |
 | Data hooks | `queries/*.ts` (React Query), GraphQL underneath |
 
-Centralizing data access in React Query hooks (`queries/*.ts`) means components,
-styles, and i18n never touch AppSync directly — the whole app talks to one thin,
-mockable seam.
+Components never touch Amplify: they call the React Query hooks in
+`src/queries/`, which call the thin client seam in `src/api/client.ts`
+(`gql()` / `subscribe()`). Swapping the transport or mocking it in tests means
+touching only that one file.
+
+## Layout
+
+```
+web/
+├── index.html
+├── vite.config.ts
+├── src/
+│   ├── main.tsx           # Amplify config + Authenticator + React Query provider
+│   ├── App.tsx
+│   ├── amplify.ts         # Amplify.configure() from VITE_* env
+│   ├── api/
+│   │   ├── client.ts      # gql() / subscribe() — the only Amplify seam
+│   │   ├── graphql.ts     # query/mutation/subscription documents
+│   │   └── types.ts       # TS shapes mirroring api/schema.graphql
+│   ├── queries/           # React Query hooks (useOrganization, useEvents, …)
+│   └── components/        # Dashboard, AsksPanel, EventsPanel
+└── .env.example           # VITE_* config (from terraform output)
+```
 
 ## Status
 
-🟠 Empty placeholder. Frontend work begins after the AppSync vertical slice
-(ARCHITECTURE.md §10, step 3) proves the data-layer pattern end-to-end.
+🟢 **Events/asks dashboard implemented.** Cognito sign-in, org header, live asks
+(raise + answer) and events (with a test-ingest action), refreshed by AppSync
+subscriptions. `npm install && npm run build` passes (typecheck + Vite bundle).
+
+🟠 **Next:** point it at a live stack, then grow the UI as new domains land.
+
+## Run
+
+```bash
+npm install
+cp .env.example .env.local     # fill from `cd ../infra && terraform output`
+npm run dev                    # http://localhost:5173
+npm run build                  # typecheck + production bundle → dist/
+```
+
+## Deploy
+
+The built `dist/` is served by the `edge` module (S3 + CloudFront):
+
+```bash
+npm run build
+aws s3 sync dist/ "s3://$(cd ../infra && terraform output -raw spa_bucket)/" --delete
+aws cloudfront create-invalidation \
+  --distribution-id "$(cd ../infra && terraform output -raw cloudfront_distribution_id)" \
+  --paths '/*'
+```

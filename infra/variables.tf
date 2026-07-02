@@ -15,6 +15,12 @@ variable "domain" {
   default     = ""
 }
 
+variable "acm_certificate_arn" {
+  type        = string
+  description = "ACM cert ARN in us-east-1 for `domain` (CloudFront). Empty → CloudFront default cert."
+  default     = ""
+}
+
 variable "vpc_cidr" {
   type        = string
   description = "CIDR block for the platform VPC."
