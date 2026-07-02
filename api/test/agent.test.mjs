@@ -129,6 +129,20 @@ test('act path invokes the injected reasoner; model cost + rationale are recorde
   assert.equal(run.cost_cents, 7);
 });
 
+test('a reasoner failure is non-fatal: act is still recorded with the fallback', async () => {
+  const w = createWorker(async () => pg, {
+    reason: async () => {
+      throw new Error('model unavailable');
+    },
+  });
+  const out = await w(signal({ organizationId: ORG.alpha, severity: 'critical', eventId: EVENT.alpha }));
+  assert.equal(out.results[0].decision, 'act'); // decision preserved
+  assert.equal(out.results[0].costCents, 5); // fell back to the estimate
+  assert.ok(out.results[0].runId); // durably logged, not lost to a DLQ
+  const run = (await runsFor(ORG.alpha)).at(-1);
+  assert.match(run.rationale, /deterministic fallback/);
+});
+
 test('reasoner is never called for ask/skip decisions', async () => {
   let called = 0;
   const w = createWorker(async () => pg, {

@@ -6,6 +6,7 @@ module "network" {
   source      = "./modules/network"
   environment = var.environment
   vpc_cidr    = var.vpc_cidr
+  enable_nat  = var.enable_nat
 }
 
 module "aurora" {

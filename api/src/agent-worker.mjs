@@ -64,10 +64,19 @@ async function processSignal(conn, signal, reason, publish) {
       rationale = `Spend guard: hourly budget exhausted — deferring ${signal.kind}.`;
     } else {
       // Within budget: invoke the reasoner (Bedrock in prod) and book the
-      // actual cost it reports so the guard meters accurately.
-      const result = await reason(signal, d);
-      rationale = result.rationale ?? rationale;
-      cost = Number.isFinite(result.costCents) ? result.costCents : d.estCostCents;
+      // actual cost it reports so the guard meters accurately. A model failure
+      // must NOT lose the decision — fall back to the deterministic rationale +
+      // estimate and still record the run (better a logged act with a degraded
+      // plan than a silent retry/DLQ).
+      try {
+        const result = await reason(signal, d);
+        rationale = result.rationale ?? rationale;
+        cost = Number.isFinite(result.costCents) ? result.costCents : d.estCostCents;
+      } catch (err) {
+        console.error('agent reasoner failed — recording act with deterministic fallback', err);
+        rationale = `${d.rationale} (model unavailable — deterministic fallback)`;
+        cost = d.estCostCents;
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 # Agent runtime — EventBridge + SQS + Step Functions
 
-**Status:** 🟢 First slice landed · ingest front door + push-to-UI wired · 2026-07-02
+**Status:** 🟢 First slice landed · ingest front door + push-to-UI wired · live-smoke-tested · 2026-07-02
 
 > **Built:** the ingest + decision path is real and test-covered.
 > - **Front door** (`api/src/event-emitter.mjs`) — `Mutation.ingestEvent` records
@@ -42,15 +42,25 @@
 >   `modules/stepfunctions` (a Standard state machine: a retryable AgentTick task
 >   → Choice on the decision). `terraform validate` passes.
 >
-> **Not yet built / next:**
-> - **Worker egress.** The VPC is isolated (no NAT). The resolver reaches
->   EventBridge + Secrets Manager via interface endpoints, but the *worker's*
->   outbound calls — Bedrock (act path), SSM (publish-URL lookup), and the
->   AppSync data endpoint (push-to-UI) — have no route yet. Bedrock/SSM can use
->   interface endpoints, but the AppSync GraphQL data plane has **no
->   PrivateLink**, so closing the live loop needs a **NAT gateway** (simplest) or
->   moving the publish behind something that does. This surfaces on the next live
->   smoke test and is a deliberate cost/topology decision.
+> **Worker egress (resolved).** The VPC is isolated (no NAT). AppSync's GraphQL
+> data plane has **no PrivateLink**, so the worker's push-to-UI (and Bedrock/SSM)
+> egress rides an optional **NAT gateway** — `enable_nat` in `modules/network`,
+> off by default to avoid idle cost, on for the live loop.
+>
+> **Live smoke test (2026-07-02).** Full apply (`enable_nat=true`,
+> `enable_edge=false`) → migrate+seed → `PutEvents` a signal onto the bus:
+> - ✅ warning → the worker consumed it (EventBridge → SQS → Lambda), raised an
+>   operator ask in Aurora, and ran clean over NAT (no publish/egress errors,
+>   DLQ empty) — the ingest→decide→DB→publish loop works end-to-end.
+> - ⚠️ critical → the act path **reached** Bedrock over NAT (egress confirmed) but
+>   the call returned `ResourceNotFoundException`: the account only exposes
+>   *legacy* Claude models and lacks access to a current one. **Action:** enable
+>   Bedrock model access for the `BEDROCK_MODEL_ID` default (a current inference
+>   profile). The reasoner failure is now non-fatal — the act is still recorded
+>   with a deterministic fallback rather than retrying to the DLQ.
+>
+> **Next:**
+> - Enable Bedrock model access + re-verify the act path live.
 > - Splitting the spend guard into a discrete Step Functions state.
 > - Token-accurate Bedrock cost accounting (currently a per-invoke approximation).
 

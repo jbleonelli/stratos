@@ -50,3 +50,9 @@ variable "enable_edge" {
   description = "Deploy the edge tier (S3 + CloudFront + WAF for the SPA). Disable for backend-only stacks."
   default     = true
 }
+
+variable "enable_nat" {
+  type        = bool
+  description = "Give private subnets internet egress via NAT (needed for the agent worker's AppSync push-to-UI and other non-PrivateLink calls). Off by default to avoid idle NAT cost."
+  default     = false
+}

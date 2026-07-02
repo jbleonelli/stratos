@@ -18,6 +18,17 @@ variable "az_count" {
   description = "Number of AZs to spread private subnets across (Aurora needs >= 2)."
 }
 
+variable "enable_nat" {
+  type        = bool
+  default     = false
+  description = <<-DESC
+    Give the private subnets internet egress via a NAT gateway. Required for the
+    agent worker's outbound calls that have no PrivateLink — notably the AppSync
+    data endpoint (push-to-UI); Bedrock/SSM also ride it. Off by default to avoid
+    idle NAT cost; turn on for the live agent loop.
+  DESC
+}
+
 locals {
   name = "stratos-${var.environment}"
 }
@@ -55,6 +66,67 @@ resource "aws_route_table_association" "private" {
   count          = var.az_count
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
+}
+
+# ── Optional internet egress (NAT) ──────────────────────────────────────────
+# A single-AZ NAT gateway in a public subnet, fronted by an internet gateway.
+# When enabled, the private route table default-routes to it, giving Lambda
+# outbound access to services without PrivateLink (AppSync data plane, etc.).
+
+resource "aws_internet_gateway" "this" {
+  count  = var.enable_nat ? 1 : 0
+  vpc_id = aws_vpc.this.id
+  tags   = { Name = local.name }
+}
+
+resource "aws_subnet" "public" {
+  count             = var.enable_nat ? 1 : 0
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = cidrsubnet(var.vpc_cidr, 8, 100)
+  availability_zone = data.aws_availability_zones.available.names[0]
+  tags              = { Name = "${local.name}-public-0" }
+}
+
+resource "aws_route_table" "public" {
+  count  = var.enable_nat ? 1 : 0
+  vpc_id = aws_vpc.this.id
+  tags   = { Name = "${local.name}-public" }
+}
+
+resource "aws_route" "public_internet" {
+  count                  = var.enable_nat ? 1 : 0
+  route_table_id         = aws_route_table.public[0].id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.this[0].id
+}
+
+resource "aws_route_table_association" "public" {
+  count          = var.enable_nat ? 1 : 0
+  subnet_id      = aws_subnet.public[0].id
+  route_table_id = aws_route_table.public[0].id
+}
+
+resource "aws_eip" "nat" {
+  count      = var.enable_nat ? 1 : 0
+  domain     = "vpc"
+  tags       = { Name = "${local.name}-nat" }
+  depends_on = [aws_internet_gateway.this]
+}
+
+resource "aws_nat_gateway" "this" {
+  count         = var.enable_nat ? 1 : 0
+  allocation_id = aws_eip.nat[0].id
+  subnet_id     = aws_subnet.public[0].id
+  tags          = { Name = local.name }
+  depends_on    = [aws_internet_gateway.this]
+}
+
+# Default route for the private subnets → NAT (only when enabled).
+resource "aws_route" "private_nat" {
+  count                  = var.enable_nat ? 1 : 0
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.this[0].id
 }
 
 # ── Security groups ─────────────────────────────────────────────────────────

@@ -39,7 +39,13 @@ const SYSTEM_PROMPT =
  * @param {{modelId?:string, region?:string, invokeCostCents?:number}} [opts]
  */
 export function makeBedrockReasoner(opts = {}) {
-  const modelId = opts.modelId ?? process.env.BEDROCK_MODEL_ID ?? 'anthropic.claude-3-5-sonnet-20240620-v1:0';
+  // Default is a current cross-region inference profile. Newer Claude models on
+  // Bedrock are only invokable on-demand via an inference profile (the region
+  // prefix, e.g. `us.`), not the bare foundation-model id. The account must have
+  // model access enabled for whatever id is used here. Override per environment
+  // with BEDROCK_MODEL_ID. (The prior default, ...claude-3-5-sonnet-20240620...,
+  // is now end-of-life and returns ResourceNotFoundException.)
+  const modelId = opts.modelId ?? process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
   const invokeCostCents = opts.invokeCostCents ?? Number(process.env.BEDROCK_INVOKE_COST_CENTS ?? 3);
 
   let client;
