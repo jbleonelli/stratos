@@ -1,0 +1,87 @@
+# Stratos — GraphQL API (events/asks vertical slice).
+#
+# Auth: Amazon Cognito user pools (default DENY). Every field is backed by the
+# Lambda resolver in src/resolver.mjs, which enforces app-layer authorization and
+# runs DB work through the claim bridge (RLS backstop). Subscriptions are
+# AppSync-native: the listed mutations publish to subscribers filtered by
+# organizationId — no resolver code required.
+
+enum EventKind { sensor_reading device_alert manual webhook schedule }
+enum EventSeverity { info warning critical }
+enum AskStatus { open answered dismissed expired }
+enum OrgKind { customer platform }
+enum OrgLifecycle { trial active suspended deleted }
+
+type Organization {
+  id: ID!
+  name: String!
+  slug: String!
+  kind: OrgKind!
+  lifecycleState: OrgLifecycle!
+  createdAt: AWSDateTime!
+}
+
+type Event {
+  id: ID!
+  organizationId: ID!
+  locationId: ID
+  deviceId: ID
+  kind: EventKind!
+  severity: EventSeverity!
+  externalId: String
+  payload: AWSJSON
+  createdAt: AWSDateTime!
+}
+
+type Ask {
+  id: ID!
+  organizationId: ID!
+  locationId: ID
+  eventId: ID
+  question: String!
+  status: AskStatus!
+  answer: String
+  createdBy: ID
+  resolvedBy: ID
+  createdAt: AWSDateTime!
+  resolvedAt: AWSDateTime
+}
+
+input RaiseAskInput {
+  question: String!
+  locationId: ID
+  eventId: ID
+}
+
+input AnswerAskInput {
+  askId: ID!
+  answer: String!
+}
+
+input IngestEventInput {
+  kind: EventKind!
+  severity: EventSeverity
+  locationId: ID
+  deviceId: ID
+  externalId: String
+  payload: AWSJSON
+}
+
+type Query {
+  organization: Organization
+  events(limit: Int = 50): [Event!]!
+  asks(status: AskStatus): [Ask!]!
+}
+
+type Mutation {
+  raiseAsk(input: RaiseAskInput!): Ask!
+  answerAsk(input: AnswerAskInput!): Ask!
+  ingestEvent(input: IngestEventInput!): Event!
+}
+
+type Subscription {
+  onAskRaised(organizationId: ID!): Ask
+    @aws_subscribe(mutations: ["raiseAsk"])
+  onEventIngested(organizationId: ID!): Event
+    @aws_subscribe(mutations: ["ingestEvent"])
+}

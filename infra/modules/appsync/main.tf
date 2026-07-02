@@ -10,18 +10,27 @@ locals {
   name = "stratos-${var.environment}"
 }
 
+# Schema of record: api/schema.graphql (events/asks slice implemented;
+# resolver in api/src/resolver.mjs). Fields map to the Lambda data source;
+# subscriptions (onAskRaised / onEventIngested) are AppSync-native.
+#
 # TODO:
 # resource "aws_appsync_graphql_api" "this" {
 #   name                = local.name
 #   authentication_type = "AMAZON_COGNITO_USER_POOLS"
 #   user_pool_config {
-#     user_pool_id = var.cognito_pool_id
+#     user_pool_id   = var.cognito_pool_id
 #     default_action = "DENY"
 #   }
-#   # schema from ../../schema.graphql
+#   schema = file("${path.module}/../../../api/schema.graphql")
 # }
 #
-# Data sources: Lambda resolver (var.resolver_lambda) and/or RDS Data API.
-# Resolvers: queries/mutations → Lambda; subscriptions for live UI updates.
+# resource "aws_appsync_datasource" "resolver" {
+#   type             = "AWS_LAMBDA"
+#   lambda_config { function_arn = var.resolver_lambda_arn }
+# }
+#
+# One resolver per Query/Mutation field → the resolver Lambda; subscriptions
+# need no data source (published by the listed mutations).
 
 # output "graphql_url" { value = aws_appsync_graphql_api.this.uris["GRAPHQL"] }

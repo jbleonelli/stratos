@@ -9,14 +9,15 @@ locals {
   name = "stratos-${var.environment}"
 }
 
+# Resolver code: api/src/resolver.mjs (exported `handler`), bundled to a zip.
 # TODO:
 # resource "aws_lambda_function" "resolver" {
 #   function_name = "${local.name}-resolver"
 #   runtime       = "nodejs22.x"
 #   architectures = ["arm64"]
-#   handler       = "index.handler"
-#   # filename / s3 from build; env from Secrets Manager at cold start.
-#   # Connects to Aurora via RDS Data API or RDS Proxy.
+#   handler       = "resolver.handler"
+#   # filename / s3 from build; DATABASE_URL from Secrets Manager at cold start.
+#   # Connects to Aurora via RDS Proxy (pg) or RDS Data API.
 # }
 
 # output "resolver_arn" { value = aws_lambda_function.resolver.arn }

@@ -50,15 +50,24 @@ The bridge pattern proven: `BEGIN; SET LOCAL ROLE stratos_resolver; SET LOCAL
 request.jwt.claims = '{…}'; <query>; COMMIT` — queried as a non-privileged role so
 RLS genuinely fires.
 
-**🟢 NEW — V1 baseline slice landed** (`db/V1_baseline.sql` + `db/seed/dev.sql`):
+**🟢 V1 baseline slice landed** (`db/V1_baseline.sql` + `db/seed/dev.sql`):
 the authored identity/org core (organizations, profiles, organization_members,
 locations, user_location_grants) + the events/asks domain (devices, events, asks,
 agent_runs), with full RLS read/write policies and the slice's SECURITY DEFINER
 RPCs (`self_serve_create_org`, `set_active_org`, `ingest_event`, `raise_ask`,
-`answer_ask`). Proven at the DB layer by `db/proof/baseline.test.mjs` (reads +
-RPC writes + tenant authz + RLS write backstop). Full suite: **22/22 green**
-(`cd db/proof && npm test`). CI (`.github/workflows/leak-suite.yml`) runs both
-suites on any `db/**` change. Not yet committed.
+`answer_ask`). Proven at the DB layer by `db/proof/baseline.test.mjs`. DB suite
+**22/22 green** (`cd db/proof && npm test`).
+
+**🟢 NEW — AppSync resolver slice landed** (`api/`): the real Lambda resolver for
+events/asks — `api/schema.graphql` (SDL incl. subscriptions) + `api/src/`
+(`resolver.mjs` dispatch → app-layer authz → claim bridge; `pg-client.mjs` prod
+connection). Proven by `api/test/resolver.test.mjs` running the actual handler
+against `db/V1_baseline.sql` on PGlite with AppSync-style Cognito events
+(queries, mutations, idempotency, cross-tenant refusal, unauth/no-org rejection).
+API suite **10/10 green** (`cd api && npm test`). This is the first proof of the
+resolver→claim-bridge path *above* the DB. Subscriptions are AppSync-native
+(published by `raiseAsk`/`ingestEvent`). CI (`.github/workflows/leak-suite.yml`,
+workflow `ci`) runs both the DB and API suites. Not yet committed.
 
 Committed (root commit):
 
@@ -101,7 +110,8 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
    core slice ✅ landed; remaining: Terraform + growing the schema surface.*
 2. **Identity** — Cognito + claim bridge; prove one RLS policy + one RPC E2E.
 3. **Vertical slice** — one domain (events/asks) fully through AppSync
-   (query + mutation + subscription + authz). Validate before scaling.
+   (query + mutation + subscription + authz). ← *Resolver + SDL ✅ landed in
+   `api/`, proven against the baseline schema; remaining: Terraform wiring.*
 4. **Acceptance harness** — cross-tenant leak suite + E2E; wire as CI gates.
 5. **Domain-by-domain** — build the resolver surface + UI data hooks.
 6. **Agent runtime** — EventBridge + SQS + Step Functions + Bedrock.
@@ -117,16 +127,22 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 - **Grow the schema surface:** add the next domains to `V1_baseline.sql` (or split
   into `db/migrations/`), each with RLS policies + RPCs + baseline-test coverage.
   Reuse the org+location policy shapes already established. ← **NEXT**
+- ✅ **Vertical slice (step 3)** — DONE at the code layer. `api/` holds the
+  AppSync SDL + Lambda resolver (query + mutation + subscription + authz), proven
+  by `api/test/resolver.test.mjs` (10/10). Remaining: Terraform wiring.
 - **Foundation module:** flesh out `infra/modules/aurora` + a VPC/networking base
-  and the S3 tfstate backend so `terraform init/plan` runs.
-- **Vertical slice (step 3):** put AppSync + a Lambda resolver on top of the
-  events/asks baseline (query + mutation + subscription + authz) — the first
-  above-DB proof of the resolver→claim-bridge path.
-- ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`; runs the
-  suites on any `db/**` change).
+  and the S3 tfstate backend so `terraform init/plan` runs. ← **NEXT**
+- **Wire the resolver in Terraform:** `infra/modules/appsync` (schema +
+  Cognito auth + per-field resolvers) and `lambda` (deploy `api/src/resolver.mjs`)
+  so the slice runs on real AWS.
+- **Grow the schema surface:** add the next domains to `V1_baseline.sql` (or split
+  into `db/migrations/`), each with RLS policies + RPCs + baseline-test coverage,
+  and extend `api/schema.graphql` + the resolver to match.
+- ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`, workflow
+  `ci`; runs the DB + API suites on any `db/**` or `api/**` change).
 
-Recommended order: grow schema / build the AppSync vertical slice on the
-events/asks core → foundation Terraform module.
+Recommended order: foundation Terraform module → wire the resolver slice on real
+AWS → grow schema/resolver domain-by-domain.
 
 ## 7. Conventions & guardrails
 

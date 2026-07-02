@@ -1,35 +1,50 @@
-name: leak-suite
+name: ci
 
-# Cross-tenant leak proof — the hard authorization gate. Runs the claim-bridge
-# leak suite (real Postgres via PGlite/WASM, no services needed) on every push
-# and PR that touches the DB authz layer.
+# Authorization + resolver gates. The DB suite runs the claim-bridge leak proof
+# and the baseline slice; the API suite runs the AppSync resolver against the
+# baseline schema. Both use PGlite (real Postgres via WASM) — no services needed.
 on:
   push:
     branches: [main]
     paths:
       - "db/**"
+      - "api/**"
       - ".github/workflows/leak-suite.yml"
   pull_request:
     paths:
       - "db/**"
+      - "api/**"
       - ".github/workflows/leak-suite.yml"
 
 jobs:
-  leak-suite:
+  db-suite:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: db/proof
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: db/proof/package-lock.json
-
       - run: npm ci
+      - name: Leak proof + baseline slice
+        run: npm test
 
-      - name: Run cross-tenant leak suite
+  api-suite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - name: AppSync resolver slice
         run: npm test
