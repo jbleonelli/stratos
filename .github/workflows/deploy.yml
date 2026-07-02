@@ -1,0 +1,71 @@
+name: deploy
+
+# Manual, OIDC-authenticated Terraform runs against a real AWS account.
+# Defaults to `plan`; set action=apply to actually mutate infrastructure.
+#
+# Prerequisites (one-time):
+#   1. infra/bootstrap applied  → the S3 tfstate bucket exists
+#   2. infra/github-oidc applied → deploy role exists; put its ARN in the repo
+#      variable AWS_DEPLOY_ROLE_ARN (Settings → Secrets and variables → Actions)
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Env / client id (tfstate key + stamp)."
+        type: string
+        default: dev
+      action:
+        description: "plan or apply"
+        type: choice
+        options: [plan, apply]
+        default: plan
+      enable_edge:
+        description: "Deploy the CloudFront/WAF/SPA edge tier."
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    concurrency: deploy-${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - name: Build Lambda bundles
+        working-directory: api
+        run: npm ci && npm run build
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Init
+        working-directory: infra
+        run: terraform init -input=false -backend-config="key=${{ inputs.environment }}.tfstate"
+
+      - name: Plan
+        working-directory: infra
+        run: |
+          terraform plan -input=false -out=tf.plan \
+            -var "environment=${{ inputs.environment }}" \
+            -var "enable_edge=${{ inputs.enable_edge }}"
+
+      - name: Apply
+        if: ${{ inputs.action == 'apply' }}
+        working-directory: infra
+        run: terraform apply -input=false tf.plan

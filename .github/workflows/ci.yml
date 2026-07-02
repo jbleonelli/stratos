@@ -1,0 +1,100 @@
+name: ci
+
+# Build + correctness gates for the whole repo.
+#   db-suite     — claim-bridge leak proof + baseline slice (PGlite, no services)
+#   api-suite    — AppSync resolver against the baseline schema + bundles build
+#   web-suite    — SPA typecheck + Vite production build
+#   terraform    — fmt check + validate for every Terraform root
+# Everything runs on any change under db/api/web/infra (jobs are independent and
+# fast, so we don't bother with per-job path filtering).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "db/**"
+      - "api/**"
+      - "web/**"
+      - "infra/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "db/**"
+      - "api/**"
+      - "web/**"
+      - "infra/**"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  db-suite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: db/proof
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: db/proof/package-lock.json
+      - run: npm ci
+      - name: Leak proof + baseline slice
+        run: npm test
+
+  api-suite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+      - name: AppSync resolver slice
+        run: npm test
+      - name: Lambda bundles build
+        run: npm run build
+
+  web-suite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Typecheck + Vite build
+        run: npm run build
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+      - name: fmt check
+        run: terraform fmt -check -recursive infra
+      - name: validate roots
+        # Each Terraform root is validated with backend init skipped (no cloud
+        # creds needed): infra (S3 backend), bootstrap, and github-oidc.
+        run: |
+          set -euo pipefail
+          for dir in infra infra/bootstrap infra/github-oidc; do
+            if [ -d "$dir" ]; then
+              echo "::group::validate $dir"
+              terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+              terraform -chdir="$dir" validate
+              echo "::endgroup::"
+            fi
+          done
