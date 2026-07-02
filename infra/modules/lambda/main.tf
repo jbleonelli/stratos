@@ -40,15 +40,30 @@ variable "log_retention_days" {
   default = 14
 }
 
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 locals {
   name     = "stratos-${var.environment}"
   dist_dir = var.lambda_dist_dir != "" ? var.lambda_dist_dir : "${path.module}/../../../api/dist"
+
+  # Static names/ARNs the eventbridge/appsync modules also derive from
+  # `environment`. Referencing them by their deterministic name here — rather
+  # than a module output — keeps this module free of a dependency cycle.
+  event_bus_name = "stratos-${var.environment}-events"
+  event_bus_arn  = "arn:aws:events:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:event-bus/${local.event_bus_name}"
+
   db_env = {
     DB_SECRET_ARN = var.db_secret_arn
     DB_HOST       = var.db_host
     DB_NAME       = var.db_name
     DB_PORT       = tostring(var.db_port)
   }
+
+  # The resolver emits a signal onto the agent bus on ingestEvent.
+  resolver_env = merge(local.db_env, {
+    EVENT_BUS_NAME = local.event_bus_name
+  })
 
   # The agent worker publishes activity to AppSync; it looks up the GraphQL URL
   # from this SSM parameter (written by the appsync module). Using the static
@@ -118,6 +133,20 @@ resource "aws_iam_role_policy" "bedrock" {
   policy = data.aws_iam_policy_document.bedrock.json
 }
 
+# The resolver emits ingested events onto the agent bus.
+data "aws_iam_policy_document" "put_events" {
+  statement {
+    actions   = ["events:PutEvents"]
+    resources = [local.event_bus_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "put_events" {
+  name   = "emit-agent-signals"
+  role   = aws_iam_role.this.id
+  policy = data.aws_iam_policy_document.put_events.json
+}
+
 # ── Resolver function (invoked by AppSync) ──────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "resolver" {
@@ -141,7 +170,7 @@ resource "aws_lambda_function" "resolver" {
     security_group_ids = [var.security_group_id]
   }
 
-  environment { variables = local.db_env }
+  environment { variables = local.resolver_env }
 
   depends_on = [
     aws_iam_role_policy_attachment.basic,

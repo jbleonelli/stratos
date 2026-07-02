@@ -26,7 +26,7 @@ variable "worker_role_name" {
 variable "event_sources" {
   type        = list(string)
   description = "EventBridge `source` values the routing rule matches."
-  default     = ["stratos.devices", "stratos.webhooks", "stratos.simulator"]
+  default     = ["stratos.api", "stratos.devices", "stratos.webhooks", "stratos.simulator"]
 }
 
 locals {

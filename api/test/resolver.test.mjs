@@ -125,6 +125,53 @@ test('Mutation.ingestEvent is idempotent on externalId', async () => {
   assert.equal(a.organizationId, ORG.beta);
 });
 
+// ─────────────────────────── Ingest → agent bus ────────────────────────────
+
+test('ingestEvent emits an agent signal shaped from the recorded event', async () => {
+  const emitted = [];
+  const h = createResolver(async () => pg, { emit: async (s) => emitted.push(s) });
+  const event = await h(
+    ev(
+      'Mutation',
+      'ingestEvent',
+      { input: { kind: 'device_alert', severity: 'critical', externalId: 'sig-1' } },
+      AS.alphaAdmin,
+    ),
+  );
+  assert.equal(emitted.length, 1);
+  const s = emitted[0];
+  assert.equal(s.organizationId, ORG.alpha);
+  assert.equal(s.eventId, event.id); // links the signal back to the event row
+  assert.equal(s.kind, 'device_alert');
+  assert.equal(s.severity, 'critical');
+});
+
+test('reads and non-ingest mutations never emit', async () => {
+  let calls = 0;
+  const h = createResolver(async () => pg, { emit: async () => (calls += 1) });
+  await h(ev('Query', 'events', {}, AS.alphaAdmin));
+  await h(ev('Mutation', 'raiseAsk', { input: { question: 'no emit?' } }, AS.alphaAdmin));
+  assert.equal(calls, 0);
+});
+
+test('an emit failure is swallowed — the event write still returns', async () => {
+  const h = createResolver(async () => pg, {
+    emit: async () => {
+      throw new Error('bus unreachable');
+    },
+  });
+  const event = await h(
+    ev(
+      'Mutation',
+      'ingestEvent',
+      { input: { kind: 'webhook', severity: 'info', externalId: 'sig-swallow' } },
+      AS.alphaAdmin,
+    ),
+  );
+  assert.ok(event.id);
+  assert.equal(event.organizationId, ORG.alpha);
+});
+
 // ─────────────────────────── App-layer authz ───────────────────────────────
 
 test('unauthenticated requests are rejected before the DB', async () => {

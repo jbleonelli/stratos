@@ -1,8 +1,15 @@
 # Agent runtime — EventBridge + SQS + Step Functions
 
-**Status:** 🟢 First slice landed · push-to-UI wired · 2026-07-02
+**Status:** 🟢 First slice landed · ingest front door + push-to-UI wired · 2026-07-02
 
 > **Built:** the ingest + decision path is real and test-covered.
+> - **Front door** (`api/src/event-emitter.mjs`) — `Mutation.ingestEvent` records
+>   the event, then emits a `stratos.api` signal onto the EventBridge bus so the
+>   agent evaluates it (best-effort: a bus hiccup never fails the write). The
+>   routing rule forwards it to SQS → the worker. The isolated VPC reaches
+>   EventBridge through an interface endpoint (`modules/network`); the resolver
+>   role gets `events:PutEvents` scoped to the bus. Covered by the emit-seam
+>   tests in `api/test/resolver.test.mjs`.
 > - **DB** (`db/migrations/002_agent_runtime.sql`) — per-org hourly spend budget
 >   plus the system write paths `agent_run_allowed` (spend guard),
 >   `record_agent_run` (decision log), and `agent_raise_ask`, all SECURITY
@@ -35,9 +42,17 @@
 >   `modules/stepfunctions` (a Standard state machine: a retryable AgentTick task
 >   → Choice on the decision). `terraform validate` passes.
 >
-> **Not yet built:** splitting the spend guard into a discrete Step Functions
-> state, and token-accurate Bedrock cost accounting (currently a per-invoke
-> approximation).
+> **Not yet built / next:**
+> - **Worker egress.** The VPC is isolated (no NAT). The resolver reaches
+>   EventBridge + Secrets Manager via interface endpoints, but the *worker's*
+>   outbound calls — Bedrock (act path), SSM (publish-URL lookup), and the
+>   AppSync data endpoint (push-to-UI) — have no route yet. Bedrock/SSM can use
+>   interface endpoints, but the AppSync GraphQL data plane has **no
+>   PrivateLink**, so closing the live loop needs a **NAT gateway** (simplest) or
+>   moving the publish behind something that does. This surfaces on the next live
+>   smoke test and is a deliberate cost/topology decision.
+> - Splitting the spend guard into a discrete Step Functions state.
+> - Token-accurate Bedrock cost accounting (currently a per-invoke approximation).
 
 The agent runtime is **event-driven and durable by design**, built entirely on
 native AWS primitives so every decision is retryable, observable, and cost-gated.
@@ -63,12 +78,14 @@ native AWS primitives so every decision is retryable, observable, and cost-gated
 ```mermaid
 flowchart LR
   subgraph ingest [Signal sources]
+    API[AppSync ingestEvent]
     DEV[Devices]
     WH[Webhooks]
     SIM[Simulator]
   end
 
-  DEV --> EB[EventBridge bus]
+  API --> EB[EventBridge bus]
+  DEV --> EB
   WH --> EB
   SIM --> EB
 

@@ -121,6 +121,20 @@ resource "aws_vpc_endpoint" "secretsmanager" {
   tags = { Name = "${local.name}-secretsmanager" }
 }
 
+# EventBridge — the resolver PutEvents a signal onto the bus when an event is
+# ingested. The VPC has no NAT, so this interface endpoint is how the in-VPC
+# Lambda reaches EventBridge.
+resource "aws_vpc_endpoint" "events" {
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${data.aws_region.current.name}.events"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.endpoints.id]
+  private_dns_enabled = true
+
+  tags = { Name = "${local.name}-events" }
+}
+
 # ── Outputs ─────────────────────────────────────────────────────────────────
 
 output "vpc_id" { value = aws_vpc.this.id }

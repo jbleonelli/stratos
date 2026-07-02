@@ -13,6 +13,7 @@
 import { withClaims, claimsFromIdentity } from './claim-bridge.mjs';
 import { requireOrg } from './authz.mjs';
 import { toOrganization, toEvent, toAsk } from './mappers.mjs';
+import { defaultEmitter, signalFromEvent } from './event-emitter.mjs';
 
 const one = (res) => res.rows[0] ?? null;
 
@@ -73,8 +74,15 @@ async function run(field, c, args, _claims) {
   }
 }
 
-/** Factory: `getConnection()` returns a single connection, optionally with `.release()`. */
-export function createResolver(getConnection) {
+/**
+ * Factory.
+ * @param {() => Promise<{query:Function, release?:Function}>} getConnection single connection
+ * @param {{emit?: (signal:object) => Promise<unknown>}} [opts] `emit` pushes an
+ *        ingested event onto the agent bus; defaults to a no-op. Production
+ *        passes the EventBridge emitter.
+ */
+export function createResolver(getConnection, opts = {}) {
+  const emit = opts.emit ?? defaultEmitter();
   return async function handler(event) {
     const claims = claimsFromIdentity(event.identity);
     const field = `${event.info.parentTypeName}.${event.info.fieldName}`;
@@ -84,16 +92,33 @@ export function createResolver(getConnection) {
     requireOrg(claims);
 
     const conn = await getConnection();
+    let result;
     try {
-      return await withClaims(conn, claims, (c) => run(field, c, event.arguments ?? {}, claims));
+      result = await withClaims(conn, claims, (c) => run(field, c, event.arguments ?? {}, claims));
     } finally {
       await conn.release?.();
     }
+
+    // Signal the agent runtime that a new event landed (best-effort: the event
+    // is already durable; a bus hiccup must not fail the mutation).
+    if (field === 'Mutation.ingestEvent' && result) {
+      try {
+        await emit(signalFromEvent(result));
+      } catch (err) {
+        console.error('event signal emit failed', err);
+      }
+    }
+
+    return result;
   };
 }
 
-// Default production handler: one pooled pg connection per invocation.
-export const handler = createResolver(async () => {
-  const { getConnection } = await import('./pg-client.mjs');
-  return getConnection();
-});
+// Default production handler: one pooled pg connection per invocation, emitting
+// ingested events onto the agent bus.
+export const handler = createResolver(
+  async () => {
+    const { getConnection } = await import('./pg-client.mjs');
+    return getConnection();
+  },
+  { emit: (await import('./event-emitter.mjs')).makeEventBridgeEmitter() },
+);
