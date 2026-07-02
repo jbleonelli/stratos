@@ -45,14 +45,14 @@ output "migrate_lambda_name" {
 
 output "spa_bucket" {
   description = "S3 bucket to sync the built web/ SPA into."
-  value       = module.edge.spa_bucket
+  value       = one(module.edge[*].spa_bucket)
 }
 
 output "spa_url" {
   description = "CloudFront domain serving the SPA."
-  value       = "https://${module.edge.distribution_domain_name}"
+  value       = var.enable_edge ? "https://${one(module.edge[*].distribution_domain_name)}" : null
 }
 
 output "cloudfront_distribution_id" {
-  value = module.edge.distribution_id
+  value = one(module.edge[*].distribution_id)
 }

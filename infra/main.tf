@@ -57,6 +57,7 @@ module "stepfunctions" {
 }
 
 module "edge" {
+  count               = var.enable_edge ? 1 : 0
   source              = "./modules/edge"
   environment         = var.environment
   domain              = var.domain

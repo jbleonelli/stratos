@@ -44,3 +44,9 @@ variable "db_deletion_protection" {
   description = "Protect the Aurora cluster from deletion (enable in prod)."
   default     = false
 }
+
+variable "enable_edge" {
+  type        = bool
+  description = "Deploy the edge tier (S3 + CloudFront + WAF for the SPA). Disable for backend-only stacks."
+  default     = true
+}
