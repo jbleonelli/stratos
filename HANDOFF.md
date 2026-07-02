@@ -107,7 +107,8 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 
 1. **Foundation** — Terraform baseline; Aurora + `db/V1_baseline.sql`; prove RLS
    fires from injected claims. ← *RLS-from-claims ✅ proven; `V1_baseline.sql`
-   core slice ✅ landed; remaining: Terraform + growing the schema surface.*
+   core slice ✅ landed; Terraform `network` + `aurora` + tfstate `bootstrap`
+   ✅ landed (validate passes); remaining: growing the schema surface.*
 2. **Identity** — Cognito + claim bridge; prove one RLS policy + one RPC E2E.
 3. **Vertical slice** — one domain (events/asks) fully through AppSync
    (query + mutation + subscription + authz). ← *Resolver + SDL ✅ landed in
@@ -130,19 +131,24 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 - ✅ **Vertical slice (step 3)** — DONE at the code layer. `api/` holds the
   AppSync SDL + Lambda resolver (query + mutation + subscription + authz), proven
   by `api/test/resolver.test.mjs` (10/10). Remaining: Terraform wiring.
-- **Foundation module:** flesh out `infra/modules/aurora` + a VPC/networking base
-  and the S3 tfstate backend so `terraform init/plan` runs. ← **NEXT**
-- **Wire the resolver in Terraform:** `infra/modules/appsync` (schema +
-  Cognito auth + per-field resolvers) and `lambda` (deploy `api/src/resolver.mjs`)
-  so the slice runs on real AWS.
+- ✅ **Foundation module** — DONE. `infra/modules/network` (private VPC, subnets,
+  SGs, Secrets Manager endpoint) + `infra/modules/aurora` (Serverless v2 cluster,
+  subnet group, Secrets Manager creds) + `infra/bootstrap` (tfstate S3 bucket).
+  `terraform validate` passes for root + bootstrap.
+- **Wire the rest onto AWS:** `infra/modules/cognito` (user pool + custom claims +
+  pre-token Lambda), then `appsync` (schema + Cognito auth + per-field resolvers)
+  and `lambda` (deploy `api/src/resolver.mjs`, VPC config from `network`, secret
+  from `aurora`) so the events/asks slice runs end-to-end on real AWS. ← **NEXT**
+- **Schema migration on deploy:** decide how `db/V1_baseline.sql` + seeds get
+  applied to Aurora (one-shot Lambda / CI step against the cluster).
 - **Grow the schema surface:** add the next domains to `V1_baseline.sql` (or split
   into `db/migrations/`), each with RLS policies + RPCs + baseline-test coverage,
   and extend `api/schema.graphql` + the resolver to match.
 - ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`, workflow
   `ci`; runs the DB + API suites on any `db/**` or `api/**` change).
 
-Recommended order: foundation Terraform module → wire the resolver slice on real
-AWS → grow schema/resolver domain-by-domain.
+Recommended order: Cognito module → wire the resolver slice (appsync + lambda) on
+real AWS with a schema-migration path → grow schema/resolver domain-by-domain.
 
 ## 7. Conventions & guardrails
 

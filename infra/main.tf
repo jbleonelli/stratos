@@ -1,12 +1,21 @@
 # Root composition — wires the platform modules together.
-# 🟠 Skeleton: module blocks are declared with intent; inputs/outputs are filled
-# in as each module is implemented (see ../ARCHITECTURE.md §10).
+# 🟢 Foundation live: network + aurora are apply-ready. 🟠 Remaining modules are
+# skeletons, filled in as each vertical slice lands (see ../ARCHITECTURE.md §10).
+
+module "network" {
+  source      = "./modules/network"
+  environment = var.environment
+  vpc_cidr    = var.vpc_cidr
+}
 
 module "aurora" {
-  source          = "./modules/aurora"
-  environment     = var.environment
-  db_min_capacity = var.db_min_capacity
-  db_max_capacity = var.db_max_capacity
+  source                 = "./modules/aurora"
+  environment            = var.environment
+  db_min_capacity        = var.db_min_capacity
+  db_max_capacity        = var.db_max_capacity
+  subnet_ids             = module.network.private_subnet_ids
+  vpc_security_group_ids = [module.network.db_security_group_id]
+  deletion_protection    = var.db_deletion_protection
 }
 
 module "cognito" {
@@ -22,8 +31,8 @@ module "lambda" {
 }
 
 module "appsync" {
-  source            = "./modules/appsync"
-  environment       = var.environment
+  source      = "./modules/appsync"
+  environment = var.environment
   # cognito_pool_id = module.cognito.user_pool_id
   # resolver_lambda = module.lambda.resolver_arn
 }

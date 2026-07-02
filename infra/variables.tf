@@ -15,6 +15,12 @@ variable "domain" {
   default     = ""
 }
 
+variable "vpc_cidr" {
+  type        = string
+  description = "CIDR block for the platform VPC."
+  default     = "10.20.0.0/16"
+}
+
 variable "db_min_capacity" {
   type        = string
   description = "Aurora Serverless v2 minimum ACUs."
@@ -25,4 +31,10 @@ variable "db_max_capacity" {
   type        = string
   description = "Aurora Serverless v2 maximum ACUs."
   default     = "4"
+}
+
+variable "db_deletion_protection" {
+  type        = bool
+  description = "Protect the Aurora cluster from deletion (enable in prod)."
+  default     = false
 }
