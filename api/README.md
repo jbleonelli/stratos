@@ -9,7 +9,7 @@ set on each DB call.
 - Enforce org / location / contract / platform-admin scoping in code.
 - Open each Aurora transaction with the caller's Cognito claims
   (`SET LOCAL request.jwt.claims = ...`) so RLS fires as a backstop.
-- Call the ported `SECURITY DEFINER` RPCs for write flows.
+- Call the `SECURITY DEFINER` RPCs for write flows.
 - Integrate Stripe (billing) and SES (email) where a resolver initiates them.
 
 See [`../docs/architecture/authorization-and-claim-bridge.md`](../docs/architecture/authorization-and-claim-bridge.md).

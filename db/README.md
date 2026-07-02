@@ -1,26 +1,34 @@
 # db/ — schema & migrations
 
-Aurora PostgreSQL schema. Greenfield migration history that **starts from a clean
-baseline snapshot of Merlin's domain model** — the schema, the ~100
-`SECURITY DEFINER` RPCs, and the RLS policies (kept as the app-layer authz
-backstop). After the baseline, migrations evolve independently of Merlin.
+Aurora PostgreSQL schema. A greenfield migration history that **starts from a
+clean authored baseline** — the schema, the ~100 `SECURITY DEFINER` RPCs, and the
+RLS policies (kept as the app-layer authz backstop). After the baseline,
+migrations are forward-only.
 
-## Layout (planned)
+## Layout
 
 ```
 db/
-├── V1_baseline.sql     # snapshot: tables + RPCs + RLS (from Merlin, one-time)
-├── migrations/         # forward-only migrations, Stratos-owned
-└── helpers/            # current_user_org(), is_platform_admin(), has_location_access()
+├── V1_baseline.sql     # authored baseline: tables + RPCs + RLS — TODO
+├── migrations/         # forward-only migrations — TODO
+├── helpers/            # RLS authz helpers (claim bridge, DB side)
+│   └── 001_authz.sql   # ✅ current_user_org(), is_platform_admin(), has_location_access()
+└── proof/              # ✅ claim-bridge cross-tenant leak proof (runnable)
 ```
 
 ## Notes
 
-- RLS helpers read `current_setting('request.jwt.claims', true)` — ported
-  verbatim so policies work unchanged under the Lambda claim bridge.
-- `V1_baseline.sql` is generated once during data-seed
-  (see [`../docs/data-seed/`](../docs/data-seed/)), then frozen.
+- RLS helpers read `current_setting('request.jwt.claims', true)` so policies work
+  under the Lambda claim bridge with no app code.
+- `V1_baseline.sql` is authored once, then frozen; changes go through
+  `migrations/`.
 
 ## Status
 
-🟠 Empty placeholder. Baseline snapshot is step 1 of the build sequence.
+🟢 **Claim bridge proven.** `helpers/001_authz.sql` +
+[`proof/`](proof/) demonstrate that RLS still enforces tenant isolation when a
+Lambda resolver injects Cognito claims by hand (both app-layer-on and
+app-layer-bypassed modes). Run it: `cd proof && npm install && npm test`.
+
+🟠 **Next:** author the full `V1_baseline.sql` (structure + ~100 RPCs + all RLS
+policies) — step 1 of the build sequence.

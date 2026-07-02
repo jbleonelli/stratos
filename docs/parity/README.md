@@ -1,13 +1,13 @@
-# Parity & acceptance gate
+# Acceptance gate
 
 **Status:** 🟠 Plan · 2026-07-02
 
-"Same functionality" is not a vibe — it is a **test gate**. Stratos reaches
-parity when the ported suites pass against the AWS stack in CI and block release.
+"Works correctly" is not a vibe — it is a **test gate**. A slice of Stratos is
+accepted when its suites pass against the AWS stack in CI and block release.
 
 ---
 
-## The gates (ported from Merlin)
+## The gates
 
 | Gate | What it proves | Blocking? |
 | --- | --- | --- |
@@ -16,14 +16,14 @@ parity when the ported suites pass against the AWS stack in CI and block release
 | **Money-path / RPC guards** | Billing + write RPCs behave | ✅ Hard block |
 | **Page render smoke** | Every surface mounts | ✅ |
 | **Route-map drift** | Navigation surface matches spec | ✅ |
-| **Unit / pure-logic** | Ported domain logic pins | ✅ |
+| **Unit / pure-logic** | Domain logic is pinned | ✅ |
 
-## E2E journeys to port (Merlin has 7)
+## Core E2E journeys (7)
 
 1. Mobile worker happy-path (task done → ticket + photo)
 2. Login (password → signed-in surface)
 3. Logout
-4. Worker "Ask Merlin" chat
+4. Worker assistant chat
 5. Desktop approve-flow (facility manager approves a pending ask)
 6. Contractor login → contracts portfolio
 7. Customer shell 5-pillar routing
@@ -37,9 +37,10 @@ no mutation of real data.
 2. App-layer authz **bypassed** + RLS **on** (proves the DB backstop blocks a
    resolver bug).
 
-Both green = the re-implemented authorization is trustworthy.
+Both green = the authorization layer is trustworthy. A runnable version already
+lives in [`../../db/proof/`](../../db/proof/).
 
-## Definition of done (functional parity)
+## Definition of done
 
 - [ ] All 7 E2E journeys green against Stratos in CI
 - [ ] Cross-tenant leak suite green in both modes
@@ -49,5 +50,4 @@ Both green = the re-implemented authorization is trustworthy.
 
 ## Non-goals
 
-- 100% line or E2E coverage. 7–10 hermetic journeys + guard suites is the target,
-  same as Merlin.
+- 100% line or E2E coverage. 7–10 hermetic journeys + guard suites is the target.

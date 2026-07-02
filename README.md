@@ -1,15 +1,14 @@
 # Stratos
 
-A fully AWS-native building-operations platform. Greenfield rebuild of the Merlin
-product surface (same functionality, same UI) on AWS managed services only —
-**independent of Merlin**: no shared runtime, no database link, no sync. Merlin
-data is imported **once** at bootstrap and the cord is cut.
+A fully AWS-native building-operations platform, built from scratch on AWS
+managed services only.
 
 ## Why this repo exists
 
-A customer procurement mandate requires the platform to run on **fully
-AWS-native managed services** — no Supabase software, no PostgREST. Stratos is
-that build, started from scratch.
+Stratos runs on **fully AWS-native managed services** — no Supabase software, no
+PostgREST. That constraint shapes the whole architecture: authorization moves
+into the application layer (AppSync/Lambda) with RLS kept as a database backstop,
+and the data API is GraphQL over AppSync.
 
 ## Stack (AWS products only)
 
@@ -39,12 +38,12 @@ stratos/
 ├── ARCHITECTURE.md    # founding architecture spec — read this first
 ├── docs/
 │   ├── architecture/  # authz claim-bridge, agent runtime deep-dives
-│   ├── data-seed/     # one-time Merlin → AWS import (no sync)
+│   ├── data-seed/     # deterministic seed data for dev / demo / E2E
 │   └── parity/        # acceptance gate: leak suite + E2E journeys
 ├── infra/             # Terraform (all AWS)
 ├── api/               # Lambda resolvers / BFF handlers
-├── web/               # React + Vite SPA (ported UI, then owned)
-└── db/                # baseline schema + fresh migration history
+├── web/               # React + Vite SPA
+└── db/                # schema, RPCs, RLS + migration history
 ```
 
 ## Status

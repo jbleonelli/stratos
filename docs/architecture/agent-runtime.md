@@ -2,22 +2,21 @@
 
 **Status:** 🟠 Design · 2026-07-02
 
-This is the one area we deliberately **re-architect** rather than port. Merlin
-runs agents on a Postgres cron that polls an `events` table. Greenfield on AWS
-lets us make this durable, observable, and retryable with native primitives.
+The agent runtime is **event-driven and durable by design**, built entirely on
+native AWS primitives so every decision is retryable, observable, and cost-gated.
 
 ---
 
-## Mapping Merlin concepts to AWS
+## Components
 
-| Merlin | Stratos (AWS-native) |
+| Concern | Service |
 | --- | --- |
-| `events` table (canonical signal layer) | **EventBridge bus** + `events` table of record in Aurora |
-| Agent cron tick (per-minute poll) | **EventBridge Scheduler** + event-driven triggers |
-| Decision loop in handler code | **Step Functions** state machine |
-| `agent_runs` (decision log) | Aurora `agent_runs` (unchanged shape) |
-| Per-agent action tables | Aurora (unchanged) |
-| Claude call | **Bedrock** invoke (a state) |
+| Canonical signal layer | **EventBridge bus** + an `events` table of record in Aurora |
+| Time-based triggers | **EventBridge Scheduler** + event-driven rules |
+| Decision loop | **Step Functions** state machine |
+| Decision log | Aurora `agent_runs` |
+| Per-agent action records | Aurora action tables |
+| LLM call | **Bedrock** invoke (a state in the machine) |
 | Spend guard | a **guard state** before the Bedrock invoke |
 
 ---
@@ -67,8 +66,8 @@ flowchart LR
 
 - **EventBridge** is the transport (at-least-once, decoupled ingest).
 - Aurora keeps an `events` table of record for query/audit and for the UI's
-  event feed (ported from Merlin), written by the resolver/consumer.
-- Idempotency via `external_id` (as in Merlin) to dedupe retry-prone sources.
+  event feed, written by the resolver/consumer.
+- Idempotency via `external_id` to dedupe retry-prone sources.
 
 ## Scheduling (non-agent crons)
 

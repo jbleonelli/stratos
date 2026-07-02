@@ -10,10 +10,11 @@ tenant isolation.
 
 ## The problem
 
-Merlin's isolation is declarative RLS in Postgres, keyed off `auth.uid()` /
-`current_user_org()`, which PostgREST injects from GoTrue JWTs. Removing
-PostgREST removes that automatic claim injection. Naively, all tenant scoping
-would become hand-written resolver code — the classic place a rewrite leaks data.
+Tenant isolation is enforced by declarative RLS in Postgres, keyed off
+`auth.uid()` / `current_user_org()`. In a PostgREST-style stack those claims are
+injected into the DB session automatically from the JWT. Stratos has no
+PostgREST, so there is no automatic injection — naively, all tenant scoping would
+become hand-written resolver code, the classic place tenant data leaks.
 
 ## The approach: defense in depth
 
@@ -65,8 +66,8 @@ COMMIT;
 ```
 
 The Postgres helper functions (`current_user_org()`, `is_platform_admin()`,
-`has_location_access()`) are ported verbatim from Merlin and read from
-`current_setting('request.jwt.claims', true)` — unchanged.
+`has_location_access()`) read from `current_setting('request.jwt.claims', true)`,
+so the RLS policies need no application code.
 
 ## Cognito claim model
 
@@ -78,8 +79,8 @@ The Postgres helper functions (`current_user_org()`, `is_platform_admin()`,
 | `email` | standard | display, support |
 
 A **pre-token-generation Lambda** resolves the active org + role at sign-in
-(and on org switch) and injects them as claims, replacing Merlin's `active_org`
-mechanism.
+(and on org switch) and injects them as the `organization_id` and `platform_role`
+claims.
 
 ## Connection strategy
 

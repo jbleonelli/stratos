@@ -1,0 +1,13 @@
+{
+  "name": "stratos-claim-bridge-proof",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Proof that tenant isolation (RLS) survives the Cognito -> Lambda claim bridge that replaces PostgREST.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.17"
+  }
+}

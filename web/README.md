@@ -1,21 +1,23 @@
 # web/ — React + Vite SPA
 
-The frontend. **Ported from Merlin's React SPA, then owned by Stratos.** Same UI,
-same components, same i18n, same routing. Only the **data layer** changes.
+The frontend: a single React + Vite single-page app. Its only backend seam is the
+**data layer**, kept behind a stable hook API so the transport is swappable and
+testable in isolation.
 
-## What changes vs Merlin
+## Data layer
 
-| Layer | Merlin | Stratos |
-| --- | --- | --- |
-| Auth client | `supabase-js` auth | Cognito (Amplify Auth or oidc-client) |
-| Data client | `supabase-js` / PostgREST | GraphQL client (Amplify / urql / Apollo) → AppSync |
-| Realtime | Supabase channels | AppSync subscriptions |
-| Data hooks | `queries/*.ts` (React Query) | Same hooks, GraphQL underneath |
+| Concern | Choice |
+| --- | --- |
+| Auth client | Cognito (Amplify Auth or oidc-client) |
+| Data client | GraphQL client (Amplify / urql / Apollo) → AppSync |
+| Realtime | AppSync subscriptions |
+| Data hooks | `queries/*.ts` (React Query), GraphQL underneath |
 
-The React Query hook seam (`queries/*.ts`) is why this is a **client swap, not a
-component rewrite**. Components, styles, and i18n are carried over unchanged.
+Centralizing data access in React Query hooks (`queries/*.ts`) means components,
+styles, and i18n never touch AppSync directly — the whole app talks to one thin,
+mockable seam.
 
 ## Status
 
-🟠 Empty placeholder. Port begins after the AppSync vertical slice
+🟠 Empty placeholder. Frontend work begins after the AppSync vertical slice
 (ARCHITECTURE.md §10, step 3) proves the data-layer pattern end-to-end.

@@ -10,43 +10,54 @@ Last updated: 2026-07-02
 
 ## 1. What Stratos is
 
-A **greenfield** rebuild of the **Merlin** building-operations platform on a
-**fully AWS-native managed stack** — driven by a customer **procurement mandate**
-(no Supabase software, no PostgREST). Same functionality, same UI.
-
-**Independence is a hard rule.** No shared runtime, no DB link, no sync with
-Merlin. Merlin is a **reference spec** (UI + functionality) and a **one-time data
-source** (imported once at bootstrap, then the cord is cut). Copying Merlin's UI
-source, DB schema, and test suites as a *starting point* is allowed and expected;
-runtime coupling is not.
+A **greenfield**, **fully AWS-native** building-operations platform — built from
+scratch on AWS managed services only (no Supabase software, no PostgREST). That
+one constraint drives the whole architecture: authorization lives in the
+application layer (AppSync/Lambda) with RLS kept in the database as a backstop,
+and the data API is GraphQL on AppSync.
 
 ## 2. Where things live
 
 - **This repo (Stratos):** `…/DESIGN/WORK/CODING/STRATOS`
   Remote: `https://github.com/jbleonelli/stratos` (branch `main`).
-- **Merlin (reference only, do NOT modify):**
-  `…/DESIGN/WORK/CLAUDE/PROJECTS/MERLIN`
-  Use it read-only to copy UI source, schema, RPCs, RLS policies, and test suites.
 
-> ⚠️ **Workspace note:** This doc assumes Cursor is now open **with STRATOS as the
-> workspace root**. If shell `pwd` / `git status` show Merlin instead, the
-> workspace didn't switch — stop and re-open the STRATOS folder, otherwise git
-> and the sandbox will operate on the wrong repo.
+> ⚠️ **Workspace note:** This doc assumes Cursor is open **with STRATOS as the
+> workspace root**. If shell `pwd` / `git status` point somewhere else, the
+> workspace didn't switch — re-open the STRATOS folder, otherwise git and the
+> sandbox will operate on the wrong repo.
 
 ## 3. Current state (as of 2026-07-02)
 
 **Founding scaffold committed + pushed** (root commit, 23 files). Nothing is
-deployed. Everything below `infra/` is a **skeleton** (intent + sketched
-resources, not `apply`-ready); `web/`, `api/`, `db/` are placeholder READMEs.
+deployed. `infra/` is a **skeleton** (intent + sketched resources, not
+`apply`-ready); `web/`, `api/` are placeholder READMEs.
 
-Committed:
+**🟢 NEW — claim-bridge proof is green** (`db/`). The single biggest risk (does
+RLS still isolate tenants once PostgREST's automatic JWT injection is gone?) is
+**retired with a runnable test**:
+
+- `db/helpers/001_authz.sql` — RLS authz helpers reading `request.jwt.claims`
+  (`current_user_org()`, `is_platform_admin()`, `has_location_access()`).
+  `organization_id` / `platform_role` come straight from the Cognito claim
+  (resolved by the pre-token-gen Lambda).
+- `db/proof/` — a minimal org-scoped schema with the standard RLS policy shapes +
+  a 10-test cross-tenant leak suite on **PGlite (real Postgres in WASM, no
+  Docker)**. Proves isolation in both modes: app-layer-on, and app-layer-bypassed
+  (the DB backstop catches a simulated resolver bug). `cd db/proof && npm install
+  && npm test` → 10/10 green. Not yet committed.
+
+The bridge pattern proven: `BEGIN; SET LOCAL ROLE stratos_resolver; SET LOCAL
+request.jwt.claims = '{…}'; <query>; COMMIT` — queried as a non-privileged role so
+RLS genuinely fires.
+
+Committed (root commit):
 
 ```
 ARCHITECTURE.md                                  # plan of record — read after this
 README.md
 docs/architecture/authorization-and-claim-bridge.md
 docs/architecture/agent-runtime.md
-docs/data-seed/README.md                         # one-time Merlin import plan
+docs/data-seed/README.md                         # dev/demo/test seed-data plan
 docs/parity/README.md                            # acceptance gate
 infra/ (Terraform: root + modules/{edge,cognito,aurora,appsync,lambda,
         eventbridge,stepfunctions})
@@ -59,15 +70,15 @@ web/README.md  api/README.md  db/README.md       # placeholders
 | --- | --- |
 | Cloud | AWS-native managed services only. Non-AWS exception: Stripe (payments). |
 | Auth | Amazon Cognito; custom claims `organization_id`, `platform_role`; pre-token-gen Lambda resolves active org/role. |
-| Data API | AWS AppSync (GraphQL) — replaces PostgREST **and** Supabase Realtime. |
-| Authorization | App-layer in Lambda resolvers (the mandate) **+ RLS kept in Aurora as a backstop** via a Cognito→`request.jwt.claims` bridge. |
-| Database | Aurora Serverless v2 (Postgres). Schema = one-time snapshot of Merlin → `db/V1_baseline.sql`, then evolves independently. Keep the ~100 `SECURITY DEFINER` RPCs + RLS policies. |
+| Data API | AWS AppSync (GraphQL) — data API + realtime in one service (no PostgREST). |
+| Authorization | App-layer in Lambda resolvers **+ RLS kept in Aurora as a backstop** via a Cognito→`request.jwt.claims` bridge. |
+| Database | Aurora Serverless v2 (Postgres). Schema authored in `db/V1_baseline.sql` (structure + ~100 `SECURITY DEFINER` RPCs + RLS policies), evolving via forward-only migrations. |
 | Agent runtime | EventBridge (bus) + SQS + Step Functions (decision loop) + Bedrock. Spend guard = a state in the machine. |
 | Storage | S3 + presigned URLs. |
 | Scheduling | EventBridge Scheduler → Lambda (IAM-auth, no shared cron secret). |
 | Email | Amazon SES. |
 | IaC | Terraform, one module set, stamped per env and per isolated client stack. |
-| UI | **Ported** from Merlin, then owned. Only the data layer changes (`supabase-js` → GraphQL client + Cognito). NOT a rewrite. |
+| UI | React + Vite SPA; the only backend seam is a GraphQL client + Cognito behind React Query hooks. |
 | Observability | CloudWatch + X-Ray. |
 
 Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
@@ -76,38 +87,41 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 ## 5. Build sequence (from ARCHITECTURE.md §10)
 
 1. **Foundation** — Terraform baseline; Aurora + `db/V1_baseline.sql`; prove RLS
-   fires from injected claims. ← **NEXT**
+   fires from injected claims. ← *RLS-from-claims is ✅ proven in `db/proof`;
+   remaining: `V1_baseline.sql` + Terraform.*
 2. **Identity** — Cognito + claim bridge; prove one RLS policy + one RPC E2E.
 3. **Vertical slice** — one domain (events/asks) fully through AppSync
    (query + mutation + subscription + authz). Validate before scaling.
-4. **Parity harness** — port cross-tenant leak suite + E2E; wire as CI gates.
-5. **Domain-by-domain** — build the resolver surface; port UI data hooks.
+4. **Acceptance harness** — cross-tenant leak suite + E2E; wire as CI gates.
+5. **Domain-by-domain** — build the resolver surface + UI data hooks.
 6. **Agent runtime** — EventBridge + SQS + Step Functions + Bedrock.
 7. **Storage + email + billing** — S3, SES, Stripe.
-8. **Data seed + launch** — one-time import, smoke, DNS cutover.
+8. **Seed + launch** — load seed data, smoke, DNS cutover.
 
 ## 6. Immediate next steps (pick one)
 
+- ✅ **Claim-bridge proof** — DONE (`db/helpers` + `db/proof`, 10/10 green). This
+  was the single biggest risk; it's retired. **First follow-up: commit it.**
+- **Schema baseline:** author `db/V1_baseline.sql` (structure + ~100
+  `SECURITY DEFINER` RPCs + all RLS policies), reusing the helper functions
+  already landed in `db/helpers/001_authz.sql`. ← **NEXT (biggest)**
 - **Foundation module:** flesh out `infra/modules/aurora` + a VPC/networking base
   and the S3 tfstate backend so `terraform init/plan` runs.
-- **Schema baseline:** define the `db/V1_baseline.sql` extraction procedure from
-  Merlin (structure + RPCs + RLS helpers) and land the RLS helper functions.
-- **Claim-bridge proof:** a minimal Lambda that opens an Aurora tx with
-  `SET LOCAL request.jwt.claims`, plus a test proving RLS blocks cross-tenant
-  reads (both app-layer-on and app-layer-bypassed modes).
+- **Wire the leak suite into CI** (GitHub Actions: `node --test` in `db/proof`) so
+  the backstop stays proven as the schema grows.
 
-Recommended order: schema baseline → claim-bridge proof → foundation module,
-because the authz proof is the single biggest risk to retire.
+Recommended order: commit the proof → schema baseline → foundation module. The
+proof's helpers + policy shapes are the template the baseline should follow.
 
 ## 7. Conventions & guardrails
 
 - **Secrets** → AWS Secrets Manager (ARN refs). Never commit `.env`/`.tfvars`
-  (already gitignored). Merlin has a `Merlin keys.txt` and `.env*` files — never
-  copy secrets across.
+  (already gitignored).
 - **Terraform:** `region` is a variable (per-client residency); state in S3 with
   native locking, one key per env/client.
 - **CI auth to AWS:** GitHub OIDC, no long-lived keys (to be set up).
-- **Parity is the definition of done:** leak suite + 7 E2E journeys green in CI.
+- **Acceptance is the definition of done:** leak suite + the E2E journeys green
+  in CI.
 
 ## 8. How to resume
 
