@@ -43,6 +43,26 @@ output "migrate_lambda_name" {
   value       = module.lambda.migrate_name
 }
 
+# ── Agent runtime ───────────────────────────────────────────────────────────
+
+output "event_bus_name" {
+  description = "EventBridge bus signals are published to."
+  value       = module.eventbridge.bus_name
+}
+
+output "agent_work_queue_url" {
+  value = module.eventbridge.work_queue_url
+}
+
+output "agent_worker_name" {
+  value = module.lambda.agent_worker_name
+}
+
+output "agent_state_machine_arn" {
+  description = "Step Functions decision loop."
+  value       = module.stepfunctions.state_machine_arn
+}
+
 output "spa_bucket" {
   description = "S3 bucket to sync the built web/ SPA into."
   value       = one(module.edge[*].spa_bucket)

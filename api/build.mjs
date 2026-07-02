@@ -2,12 +2,17 @@
 // deployment. esbuild inlines dependencies (pg) so no node_modules ship.
 // Terraform (infra/modules/*) zips dist/ as the function artifact.
 //
-//   npm run build   →   dist/resolver.mjs, dist/pre-token.mjs
+//   npm run build   →   dist/resolver.mjs, dist/pre-token.mjs, …
 
 import * as esbuild from 'esbuild';
 
 await esbuild.build({
-  entryPoints: ['src/resolver.mjs', 'src/pre-token.mjs', 'src/migrate.mjs'],
+  entryPoints: [
+    'src/resolver.mjs',
+    'src/pre-token.mjs',
+    'src/migrate.mjs',
+    'src/agent-worker.mjs',
+  ],
   outdir: 'dist',
   bundle: true,
   platform: 'node',

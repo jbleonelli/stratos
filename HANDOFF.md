@@ -116,6 +116,24 @@ infra/ (Terraform: root + modules/{edge,cognito,aurora,appsync,lambda,
 web/README.md  api/README.md  db/README.md       # placeholders
 ```
 
+**🟢 NEW — live smoke test passed + CI hardened + agent runtime slice landed**:
+- **Live smoke test** — a `dev` stack was applied to real AWS (backend-only,
+  `enable_edge=false`), migrated (`applySeed`), exercised (tenant-isolated reads,
+  an RPC write, a cross-tenant denial, AppSync `UnauthorizedException` on an
+  unauthenticated call), then destroyed. Added `enable_edge` toggle for
+  backend-only stacks.
+- **CI hardening** — `.github/workflows/ci.yml` now gates the web build, the
+  Lambda bundle build, and `terraform fmt`/`validate` (all roots) alongside the
+  DB + API suites. `infra/github-oidc/` provisions a repo-scoped OIDC deploy
+  role; `.github/workflows/deploy.yml` is a manual (plan-by-default) deploy.
+- **Agent runtime (build sequence step 6), first slice** — `db/migrations/
+  002_agent_runtime.sql` (spend budget + `agent_run_allowed`/`record_agent_run`/
+  `agent_raise_ask`), `api/src/agent-{core,worker}.mjs` (deterministic policy +
+  spend guard + system write path, proven by `api/test/agent.test.mjs`), and
+  `infra/modules/{eventbridge,stepfunctions}` + the worker in `modules/lambda`
+  (bus → SQS → worker; Standard state machine). API suite **26/26**;
+  `terraform validate` passes. Bedrock invoke + AppSync push are the next gaps.
+
 ## 4. The decisions already made (don't re-litigate)
 
 | Topic | Decision |

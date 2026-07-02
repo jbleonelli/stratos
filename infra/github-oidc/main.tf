@@ -106,6 +106,7 @@ data "aws_iam_policy_document" "deploy" {
       "kms:*", "acm:*", "application-autoscaling:*", "cloudwatch:*",
       "lambda:*", "appsync:*", "cognito-idp:*", "cognito-identity:*",
       "cloudfront:*", "wafv2:*",
+      "sqs:*", "states:*", "events:*", "scheduler:*",
     ]
     resources = ["*"]
     condition {

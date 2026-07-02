@@ -1,6 +1,26 @@
 # Agent runtime — EventBridge + SQS + Step Functions
 
-**Status:** 🟠 Design · 2026-07-02
+**Status:** 🟢 First slice landed · 2026-07-02
+
+> **Built:** the ingest + decision path is real and test-covered.
+> - **DB** (`db/migrations/002_agent_runtime.sql`) — per-org hourly spend budget
+>   plus the system write paths `agent_run_allowed` (spend guard),
+>   `record_agent_run` (decision log), and `agent_raise_ask`, all SECURITY
+>   DEFINER / owned by the BYPASSRLS `stratos_auth` role (the agent has no
+>   Cognito identity, so it can't use the claim bridge).
+> - **Worker** (`api/src/agent-worker.mjs` + pure `agent-core.mjs`) — normalizes
+>   SQS/EventBridge/Step Functions inputs, applies the deterministic policy
+>   (critical→act, warning→ask, info→skip), enforces the spend guard on
+>   LLM-backed decisions, records the run, and raises operator asks. Proven by
+>   `api/test/agent.test.mjs` on PGlite.
+> - **Infra** — `modules/eventbridge` (custom bus + routing rule + SQS work
+>   queue with a DLQ + SQS→worker mapping), `modules/lambda` (the worker
+>   function), `modules/stepfunctions` (a Standard state machine: a retryable
+>   AgentTick task → Choice on the decision). `terraform validate` passes.
+>
+> **Not yet built:** the real Bedrock invoke (the `act` path books an estimated
+> cost but does not call the model yet), the AppSync push-to-UI mutation after a
+> write, and splitting the spend guard into a discrete Step Functions state.
 
 The agent runtime is **event-driven and durable by design**, built entirely on
 native AWS primitives so every decision is retryable, observable, and cost-gated.

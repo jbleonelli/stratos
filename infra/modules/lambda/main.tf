@@ -161,6 +161,48 @@ resource "aws_lambda_function" "migrate" {
   ]
 }
 
+# ── Agent worker (invoked by SQS from the EventBridge work queue) ───────────
+# The decision-loop executor: spend guard → decide → record_agent_run →
+# agent_raise_ask. Same in-VPC role (logs, ENIs, DB secret); the SQS receive
+# policy + event-source mapping live in the eventbridge module (it owns the
+# queue).
+
+resource "aws_cloudwatch_log_group" "agent_worker" {
+  name              = "/aws/lambda/${local.name}-agent-worker"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "agent_worker" {
+  function_name    = "${local.name}-agent-worker"
+  role             = aws_iam_role.this.arn
+  runtime          = "nodejs22.x"
+  architectures    = ["arm64"]
+  handler          = "agent-worker.handler"
+  filename         = data.archive_file.bundle.output_path
+  source_code_hash = data.archive_file.bundle.output_base64sha256
+  timeout          = 60
+  memory_size      = 512
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = [var.security_group_id]
+  }
+
+  environment { variables = local.db_env }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.basic,
+    aws_iam_role_policy_attachment.vpc,
+    aws_cloudwatch_log_group.agent_worker,
+  ]
+}
+
 output "resolver_arn" { value = aws_lambda_function.resolver.arn }
 output "resolver_name" { value = aws_lambda_function.resolver.function_name }
 output "migrate_name" { value = aws_lambda_function.migrate.function_name }
+output "agent_worker_arn" { value = aws_lambda_function.agent_worker.arn }
+output "agent_worker_name" { value = aws_lambda_function.agent_worker.function_name }
+output "role_name" {
+  description = "Shared Lambda execution role — the eventbridge module attaches the SQS receive policy to it."
+  value       = aws_iam_role.this.name
+}

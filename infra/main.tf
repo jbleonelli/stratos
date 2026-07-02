@@ -46,14 +46,17 @@ module "appsync" {
 }
 
 module "eventbridge" {
-  source      = "./modules/eventbridge"
-  environment = var.environment
+  source             = "./modules/eventbridge"
+  environment        = var.environment
+  worker_lambda_arn  = module.lambda.agent_worker_arn
+  worker_lambda_name = module.lambda.agent_worker_name
+  worker_role_name   = module.lambda.role_name
 }
 
 module "stepfunctions" {
-  source      = "./modules/stepfunctions"
-  environment = var.environment
-  # bus_arn    = module.eventbridge.bus_arn
+  source            = "./modules/stepfunctions"
+  environment       = var.environment
+  worker_lambda_arn = module.lambda.agent_worker_arn
 }
 
 module "edge" {
