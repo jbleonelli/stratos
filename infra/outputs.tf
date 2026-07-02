@@ -20,3 +20,11 @@ output "db_credentials_secret_arn" {
   description = "Secrets Manager ARN for the Aurora master credentials."
   value       = module.aurora.credentials_secret_arn
 }
+
+output "cognito_user_pool_id" {
+  value = module.cognito.user_pool_id
+}
+
+output "cognito_user_pool_client_id" {
+  value = module.cognito.user_pool_client_id
+}

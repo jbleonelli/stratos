@@ -25,6 +25,7 @@ crash.log
 crash.*.log
 tfplan
 *.tfplan
+.build/
 
 # AWS / build artifacts
 *.zip

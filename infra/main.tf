@@ -19,8 +19,13 @@ module "aurora" {
 }
 
 module "cognito" {
-  source      = "./modules/cognito"
-  environment = var.environment
+  source            = "./modules/cognito"
+  environment       = var.environment
+  subnet_ids        = module.network.private_subnet_ids
+  security_group_id = module.network.lambda_security_group_id
+  db_secret_arn     = module.aurora.credentials_secret_arn
+  db_host           = module.aurora.cluster_endpoint
+  db_name           = module.aurora.database_name
 }
 
 module "lambda" {

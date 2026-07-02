@@ -64,10 +64,24 @@ events/asks — `api/schema.graphql` (SDL incl. subscriptions) + `api/src/`
 connection). Proven by `api/test/resolver.test.mjs` running the actual handler
 against `db/V1_baseline.sql` on PGlite with AppSync-style Cognito events
 (queries, mutations, idempotency, cross-tenant refusal, unauth/no-org rejection).
-API suite **10/10 green** (`cd api && npm test`). This is the first proof of the
-resolver→claim-bridge path *above* the DB. Subscriptions are AppSync-native
-(published by `raiseAsk`/`ingestEvent`). CI (`.github/workflows/leak-suite.yml`,
-workflow `ci`) runs both the DB and API suites. Not yet committed.
+This is the first proof of the resolver→claim-bridge path *above* the DB.
+Subscriptions are AppSync-native (published by `raiseAsk`/`ingestEvent`).
+
+**🟢 Terraform foundation landed** (`infra/`): `modules/network` (private VPC,
+subnets, SGs, Secrets Manager endpoint) + `modules/aurora` (Serverless v2 cluster
++ Secrets Manager creds) + `bootstrap/` (tfstate S3 bucket). `terraform validate`
+passes for root + bootstrap.
+
+**🟢 NEW — Cognito + pre-token claim bridge landed**: `infra/modules/cognito`
+(user pool, custom attrs, SPA SRP client, pre-token-generation Lambda in the VPC
+with Secrets Manager access) + `api/src/pre-token.mjs` (the handler) +
+`public.resolve_login_claims(sub)` in `db/V1_baseline.sql` (BYPASSRLS-owned
+lookup that computes `organization_id`/`platform_role` before any claims exist).
+This is the **input side** of the claim bridge (Cognito → token → RLS). Proven by
+`api/test/pre-token.test.mjs`. `api` handlers bundle via `npm run build` (esbuild)
+→ `dist/`, which the cognito module zips. API suite now **15/15 green**; DB suite
+**22/22**. CI (`.github/workflows/leak-suite.yml`, workflow `ci`) runs both. Not
+yet committed.
 
 Committed (root commit):
 
@@ -110,6 +124,8 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
    core slice ✅ landed; Terraform `network` + `aurora` + tfstate `bootstrap`
    ✅ landed (validate passes); remaining: growing the schema surface.*
 2. **Identity** — Cognito + claim bridge; prove one RLS policy + one RPC E2E.
+   ← *Cognito module + pre-token-gen Lambda (`resolve_login_claims`) ✅ landed and
+   unit-proven; remaining: run it against a real user pool + Aurora.*
 3. **Vertical slice** — one domain (events/asks) fully through AppSync
    (query + mutation + subscription + authz). ← *Resolver + SDL ✅ landed in
    `api/`, proven against the baseline schema; remaining: Terraform wiring.*
@@ -135,10 +151,12 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
   SGs, Secrets Manager endpoint) + `infra/modules/aurora` (Serverless v2 cluster,
   subnet group, Secrets Manager creds) + `infra/bootstrap` (tfstate S3 bucket).
   `terraform validate` passes for root + bootstrap.
-- **Wire the rest onto AWS:** `infra/modules/cognito` (user pool + custom claims +
-  pre-token Lambda), then `appsync` (schema + Cognito auth + per-field resolvers)
-  and `lambda` (deploy `api/src/resolver.mjs`, VPC config from `network`, secret
-  from `aurora`) so the events/asks slice runs end-to-end on real AWS. ← **NEXT**
+- ✅ **Cognito module** — DONE. `infra/modules/cognito` (user pool + SPA client +
+  pre-token-gen Lambda) + `api/src/pre-token.mjs` + `resolve_login_claims`.
+- **Wire the resolver onto AWS:** `infra/modules/appsync` (schema + Cognito auth +
+  per-field resolvers → the Lambda data source) and `lambda` (deploy
+  `api/dist/resolver.mjs`, VPC config from `network`, DB secret from `aurora`) so
+  the events/asks slice runs end-to-end on real AWS. ← **NEXT**
 - **Schema migration on deploy:** decide how `db/V1_baseline.sql` + seeds get
   applied to Aurora (one-shot Lambda / CI step against the cluster).
 - **Grow the schema surface:** add the next domains to `V1_baseline.sql` (or split
@@ -147,8 +165,8 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
 - ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`, workflow
   `ci`; runs the DB + API suites on any `db/**` or `api/**` change).
 
-Recommended order: Cognito module → wire the resolver slice (appsync + lambda) on
-real AWS with a schema-migration path → grow schema/resolver domain-by-domain.
+Recommended order: wire the resolver slice (appsync + lambda) on real AWS with a
+schema-migration path → grow schema/resolver domain-by-domain.
 
 ## 7. Conventions & guardrails
 

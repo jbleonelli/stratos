@@ -435,3 +435,54 @@ begin
   end if;
 end $$;
 grant execute on function public.answer_ask(uuid, text) to stratos_resolver;
+
+-- ─────────────────── Login claim resolution (pre-token bridge) ──────────────
+-- The Cognito pre-token-generation Lambda calls resolve_login_claims(sub) at
+-- sign-in (and on org switch) to compute the organization_id + platform_role
+-- claims it injects into the token. At that moment the caller has NO claims yet,
+-- so the lookup must read identity tables directly. `stratos_auth` is a BYPASSRLS
+-- role that OWNS the function, so the SECURITY DEFINER body sidesteps FORCE RLS
+-- (it is nologin — reachable only by executing this one function).
+
+do $$ begin create role stratos_auth nologin bypassrls; exception when duplicate_object then null; end $$;
+grant stratos_auth to current_user; -- lets this migration ALTER ... OWNER TO stratos_auth
+grant usage on schema public to stratos_auth;
+grant select on public.profiles, public.organization_members, public.organizations to stratos_auth;
+
+create or replace function public.resolve_login_claims(p_user_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = public as $$
+declare
+  v_org      uuid;
+  v_platform boolean;
+begin
+  -- Active org: explicit impersonation wins, else the profile's active org,
+  -- else the earliest non-deleted membership (freshly-provisioned users).
+  select coalesce(p.impersonating_org_id, p.active_org_id) into v_org
+  from public.profiles p where p.user_id = p_user_id;
+
+  if v_org is null then
+    select om.org_id into v_org
+    from public.organization_members om
+    join public.organizations o on o.id = om.org_id
+    where om.user_id = p_user_id and o.lifecycle_state <> 'deleted'
+    order by om.joined_at asc
+    limit 1;
+  end if;
+
+  -- Platform admin = member of any platform-kind org (e.g. the Adaptiv org).
+  select exists (
+    select 1 from public.organization_members om
+    join public.organizations o on o.id = om.org_id
+    where om.user_id = p_user_id and o.kind = 'platform'
+  ) into v_platform;
+
+  return jsonb_strip_nulls(jsonb_build_object(
+    'organization_id', v_org,
+    'platform_role', case when v_platform then 'platform_admin' else null end
+  ));
+end $$;
+
+alter function public.resolve_login_claims(uuid) owner to stratos_auth;
+-- Not a tenant-facing path: keep it off the resolver role and off PUBLIC.
+revoke all on function public.resolve_login_claims(uuid) from public;
+revoke execute on function public.resolve_login_claims(uuid) from stratos_resolver;

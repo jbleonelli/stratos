@@ -3,8 +3,9 @@
 Reusable Terraform for the Stratos platform. One module set, instantiated per
 environment (`dev`, `staging`, `prod`) and later per isolated client stack.
 
-> 🟢 **Foundation is apply-ready:** `network` + `aurora` provision a private VPC
-> and an Aurora Serverless v2 cluster (credentials in Secrets Manager).
+> 🟢 **Apply-ready:** `network` (private VPC) + `aurora` (Serverless v2, creds in
+> Secrets Manager) + `cognito` (user pool + SPA client + pre-token-generation
+> Lambda that injects the org/role claims).
 > 🟠 The remaining modules are skeletons, filled in as each vertical slice lands
 > (see [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §10 build sequence).
 >
@@ -26,8 +27,8 @@ infra/
 └── modules/
     ├── network/      # 🟢 VPC + private subnets + SGs + Secrets Mgr endpoint
     ├── aurora/       # 🟢 Aurora Serverless v2 Postgres + RLS + Secrets Manager
+    ├── cognito/      # 🟢 user pool + SPA client + pre-token-gen Lambda
     ├── edge/         # S3 static site + CloudFront + WAF
-    ├── cognito/      # user pool + custom claims + pre-token Lambda
     ├── appsync/      # GraphQL API + resolvers + Cognito authz
     ├── lambda/       # resolver / BFF functions
     ├── eventbridge/  # events bus + schedules
@@ -41,8 +42,10 @@ infra/
 cd infra/bootstrap
 terraform init && terraform apply -var=region=us-east-1
 
-# 1. the platform stack, per env/client
-cd ..
+# 1. build the Lambda bundles the cognito module deploys (api/dist)
+cd ../api && npm ci && npm run build && cd ../infra
+
+# 2. the platform stack, per env/client
 cp clients/example.tfvars.example clients/dev.tfvars   # fill values
 terraform init -backend-config="key=dev.tfstate"
 terraform plan  -var-file=clients/dev.tfvars

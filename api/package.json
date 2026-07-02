@@ -5,12 +5,14 @@
   "type": "module",
   "description": "AppSync Lambda resolvers for Stratos — app-layer authz + the RLS claim bridge.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build": "node build.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.2.17"
+    "@electric-sql/pglite": "^0.2.17",
+    "esbuild": "^0.24.0"
   }
 }
