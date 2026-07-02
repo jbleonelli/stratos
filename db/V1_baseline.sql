@@ -165,6 +165,10 @@ create trigger profiles_touch before update on public.profiles
 
 do $$ begin create role stratos_resolver nologin; exception when duplicate_object then null; end $$;
 
+-- The Lambda connects as the DB master and drops to stratos_resolver per request
+-- (set_config('role', ...)). SET ROLE requires membership, so grant it here.
+grant stratos_resolver to current_user;
+
 grant usage on schema public to stratos_resolver;
 grant usage on schema auth   to stratos_resolver;
 grant select, insert, update, delete on all tables    in schema public to stratos_resolver;

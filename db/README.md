@@ -22,10 +22,17 @@ db/
 
 `helpers/001_authz.sql` → `V1_baseline.sql` → `seed/dev.sql` (dev/test only).
 
+In a deployed stack this is automated by the **migration Lambda**
+(`api/src/migrate.mjs`): it inlines these slices, applies each exactly once
+(tracked in `public.schema_migrations`), and gates the seed behind
+`{"applySeed": true}`. Invoke it via the `migrate_lambda_name` Terraform output.
+
 ## Notes
 
 - RLS helpers read `current_setting('request.jwt.claims', true)` so policies work
   under the Lambda claim bridge with no app code.
+- The Lambda connects as the DB master and drops to `stratos_resolver` per
+  request; `V1_baseline.sql` grants that membership so `SET ROLE` works.
 - `V1_baseline.sql` is authored once, then frozen; changes go through
   `migrations/`.
 

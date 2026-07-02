@@ -29,17 +29,20 @@ module "cognito" {
 }
 
 module "lambda" {
-  source      = "./modules/lambda"
-  environment = var.environment
-  # aurora_arn = module.aurora.cluster_arn
-  # secret_arn = module.aurora.credentials_secret_arn
+  source            = "./modules/lambda"
+  environment       = var.environment
+  subnet_ids        = module.network.private_subnet_ids
+  security_group_id = module.network.lambda_security_group_id
+  db_secret_arn     = module.aurora.credentials_secret_arn
+  db_host           = module.aurora.cluster_endpoint
+  db_name           = module.aurora.database_name
 }
 
 module "appsync" {
-  source      = "./modules/appsync"
-  environment = var.environment
-  # cognito_pool_id = module.cognito.user_pool_id
-  # resolver_lambda = module.lambda.resolver_arn
+  source               = "./modules/appsync"
+  environment          = var.environment
+  cognito_user_pool_id = module.cognito.user_pool_id
+  resolver_lambda_arn  = module.lambda.resolver_arn
 }
 
 module "eventbridge" {

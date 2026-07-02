@@ -4,10 +4,12 @@ Reusable Terraform for the Stratos platform. One module set, instantiated per
 environment (`dev`, `staging`, `prod`) and later per isolated client stack.
 
 > 🟢 **Apply-ready:** `network` (private VPC) + `aurora` (Serverless v2, creds in
-> Secrets Manager) + `cognito` (user pool + SPA client + pre-token-generation
-> Lambda that injects the org/role claims).
-> 🟠 The remaining modules are skeletons, filled in as each vertical slice lands
-> (see [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §10 build sequence).
+> Secrets Manager) + `cognito` (user pool + SPA client + pre-token Lambda) +
+> `lambda` (resolver + migration runner) + `appsync` (GraphQL API, Cognito auth,
+> per-field resolvers). The events/asks slice is deployable end-to-end.
+> 🟠 The remaining modules (`edge`, `eventbridge`, `stepfunctions`) are skeletons,
+> filled in as each vertical slice lands (see
+> [`../ARCHITECTURE.md`](../ARCHITECTURE.md) §10 build sequence).
 >
 > `terraform validate` passes for both the root stack and `bootstrap/`.
 
@@ -28,9 +30,9 @@ infra/
     ├── network/      # 🟢 VPC + private subnets + SGs + Secrets Mgr endpoint
     ├── aurora/       # 🟢 Aurora Serverless v2 Postgres + RLS + Secrets Manager
     ├── cognito/      # 🟢 user pool + SPA client + pre-token-gen Lambda
+    ├── lambda/       # 🟢 resolver Lambda + schema migration runner
+    ├── appsync/      # 🟢 GraphQL API + Cognito auth + per-field resolvers
     ├── edge/         # S3 static site + CloudFront + WAF
-    ├── appsync/      # GraphQL API + resolvers + Cognito authz
-    ├── lambda/       # resolver / BFF functions
     ├── eventbridge/  # events bus + schedules
     └── stepfunctions/# agent decision loop
 ```
@@ -50,6 +52,10 @@ cp clients/example.tfvars.example clients/dev.tfvars   # fill values
 terraform init -backend-config="key=dev.tfstate"
 terraform plan  -var-file=clients/dev.tfvars
 terraform apply -var-file=clients/dev.tfvars
+
+# 3. apply the DB schema to Aurora (idempotent). Add {"applySeed":true} for dev.
+aws lambda invoke --function-name "$(terraform output -raw migrate_lambda_name)" \
+  --payload '{"applySeed":true}' --cli-binary-format raw-in-base64-out /dev/stdout
 ```
 
 Offline check (no AWS creds needed):

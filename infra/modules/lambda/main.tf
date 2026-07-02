@@ -1,23 +1,166 @@
-# AWS Lambda — AppSync resolvers / BFF logic + app-layer authorization.
-# Resolvers open a DB session with the caller's Cognito claims set
-# (SET LOCAL request.jwt.claims) so RLS fires as a backstop.
-# 🟠 Skeleton — not apply-ready.
+# AWS Lambda — the AppSync resolver + the schema migration runner.
+#
+# Both run in the private VPC, connect to Aurora as the DB master (from Secrets
+# Manager), and downgrade to stratos_resolver per request. The resolver enforces
+# app-layer authz and sets request.jwt.claims so RLS fires as the backstop.
+# Handlers are bundled by api/build.mjs into api/dist and zipped here.
 
 variable "environment" { type = string }
 
-locals {
-  name = "stratos-${var.environment}"
+variable "subnet_ids" {
+  type        = list(string)
+  description = "Private subnets for the Lambda ENIs."
 }
 
-# Resolver code: api/src/resolver.mjs (exported `handler`), bundled to a zip.
-# TODO:
-# resource "aws_lambda_function" "resolver" {
-#   function_name = "${local.name}-resolver"
-#   runtime       = "nodejs22.x"
-#   architectures = ["arm64"]
-#   handler       = "resolver.handler"
-#   # filename / s3 from build; DATABASE_URL from Secrets Manager at cold start.
-#   # Connects to Aurora via RDS Proxy (pg) or RDS Data API.
-# }
+variable "security_group_id" {
+  type        = string
+  description = "Lambda security group (egress to DB + VPC endpoints)."
+}
 
-# output "resolver_arn" { value = aws_lambda_function.resolver.arn }
+variable "db_secret_arn" {
+  type        = string
+  description = "Secrets Manager ARN of the Aurora master credentials."
+}
+
+variable "db_host" { type = string }
+variable "db_name" { type = string }
+variable "db_port" {
+  type    = number
+  default = 5432
+}
+
+variable "lambda_dist_dir" {
+  type        = string
+  default     = ""
+  description = "Directory holding the built Lambda bundles (npm run build in api/)."
+}
+
+variable "log_retention_days" {
+  type    = number
+  default = 14
+}
+
+locals {
+  name     = "stratos-${var.environment}"
+  dist_dir = var.lambda_dist_dir != "" ? var.lambda_dist_dir : "${path.module}/../../../api/dist"
+  db_env = {
+    DB_SECRET_ARN = var.db_secret_arn
+    DB_HOST       = var.db_host
+    DB_NAME       = var.db_name
+    DB_PORT       = tostring(var.db_port)
+  }
+}
+
+data "archive_file" "bundle" {
+  type        = "zip"
+  source_dir  = local.dist_dir
+  output_path = "${path.module}/.build/api.zip"
+}
+
+# ── Shared IAM role (logs + VPC ENIs + read the DB secret) ──────────────────
+
+data "aws_iam_policy_document" "assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "this" {
+  name               = "${local.name}-resolver"
+  assume_role_policy = data.aws_iam_policy_document.assume.json
+}
+
+resource "aws_iam_role_policy_attachment" "basic" {
+  role       = aws_iam_role.this.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy_attachment" "vpc" {
+  role       = aws_iam_role.this.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+data "aws_iam_policy_document" "read_secret" {
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [var.db_secret_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "read_secret" {
+  name   = "read-db-secret"
+  role   = aws_iam_role.this.id
+  policy = data.aws_iam_policy_document.read_secret.json
+}
+
+# ── Resolver function (invoked by AppSync) ──────────────────────────────────
+
+resource "aws_cloudwatch_log_group" "resolver" {
+  name              = "/aws/lambda/${local.name}-resolver"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "resolver" {
+  function_name    = "${local.name}-resolver"
+  role             = aws_iam_role.this.arn
+  runtime          = "nodejs22.x"
+  architectures    = ["arm64"]
+  handler          = "resolver.handler"
+  filename         = data.archive_file.bundle.output_path
+  source_code_hash = data.archive_file.bundle.output_base64sha256
+  timeout          = 30
+  memory_size      = 512
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = [var.security_group_id]
+  }
+
+  environment { variables = local.db_env }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.basic,
+    aws_iam_role_policy_attachment.vpc,
+    aws_cloudwatch_log_group.resolver,
+  ]
+}
+
+# ── Migration runner (invoked manually / on deploy) ─────────────────────────
+
+resource "aws_cloudwatch_log_group" "migrate" {
+  name              = "/aws/lambda/${local.name}-migrate"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "migrate" {
+  function_name    = "${local.name}-migrate"
+  role             = aws_iam_role.this.arn
+  runtime          = "nodejs22.x"
+  architectures    = ["arm64"]
+  handler          = "migrate.handler"
+  filename         = data.archive_file.bundle.output_path
+  source_code_hash = data.archive_file.bundle.output_base64sha256
+  timeout          = 120
+  memory_size      = 512
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = [var.security_group_id]
+  }
+
+  environment { variables = local.db_env }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.basic,
+    aws_iam_role_policy_attachment.vpc,
+    aws_cloudwatch_log_group.migrate,
+  ]
+}
+
+output "resolver_arn" { value = aws_lambda_function.resolver.arn }
+output "resolver_name" { value = aws_lambda_function.resolver.function_name }
+output "migrate_name" { value = aws_lambda_function.migrate.function_name }

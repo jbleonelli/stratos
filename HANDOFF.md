@@ -79,9 +79,19 @@ with Secrets Manager access) + `api/src/pre-token.mjs` (the handler) +
 lookup that computes `organization_id`/`platform_role` before any claims exist).
 This is the **input side** of the claim bridge (Cognito → token → RLS). Proven by
 `api/test/pre-token.test.mjs`. `api` handlers bundle via `npm run build` (esbuild)
-→ `dist/`, which the cognito module zips. API suite now **15/15 green**; DB suite
-**22/22**. CI (`.github/workflows/leak-suite.yml`, workflow `ci`) runs both. Not
-yet committed.
+→ `dist/`, which the cognito module zips.
+
+**🟢 NEW — resolver on AWS + migration path landed**: `infra/modules/lambda`
+(resolver Lambda + a schema-migration Lambda, in-VPC, Secrets Manager access) and
+`infra/modules/appsync` (GraphQL API with Cognito auth, a Lambda data source, and
+a resolver per Query/Mutation field). `api/src/migrate.mjs` + `migrate-core.mjs`
+apply the `db/` slices to Aurora once each (tracked in `public.schema_migrations`,
+seed gated by `applySeed`); `api/src/pg-client.mjs` now builds its connection from
+the Secrets Manager secret at cold start (genuinely deployable). `V1_baseline.sql`
+grants `stratos_resolver` to the connecting master role so `SET ROLE` works.
+The events/asks slice is now deployable **end-to-end**. API suite **18/18 green**;
+DB suite **22/22**; `terraform validate` passes (root + bootstrap). Not yet
+committed.
 
 Committed (root commit):
 
@@ -127,8 +137,9 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
    ← *Cognito module + pre-token-gen Lambda (`resolve_login_claims`) ✅ landed and
    unit-proven; remaining: run it against a real user pool + Aurora.*
 3. **Vertical slice** — one domain (events/asks) fully through AppSync
-   (query + mutation + subscription + authz). ← *Resolver + SDL ✅ landed in
-   `api/`, proven against the baseline schema; remaining: Terraform wiring.*
+   (query + mutation + subscription + authz). ← *✅ DONE. Resolver + SDL proven
+   in `api/` and deployed by `infra/modules/{lambda,appsync}` behind Cognito, with
+   a migration Lambda applying the schema to Aurora.*
 4. **Acceptance harness** — cross-tenant leak suite + E2E; wire as CI gates.
 5. **Domain-by-domain** — build the resolver surface + UI data hooks.
 6. **Agent runtime** — EventBridge + SQS + Step Functions + Bedrock.
@@ -153,20 +164,24 @@ Full rationale: `ARCHITECTURE.md` §5, and the two deep-dives in
   `terraform validate` passes for root + bootstrap.
 - ✅ **Cognito module** — DONE. `infra/modules/cognito` (user pool + SPA client +
   pre-token-gen Lambda) + `api/src/pre-token.mjs` + `resolve_login_claims`.
-- **Wire the resolver onto AWS:** `infra/modules/appsync` (schema + Cognito auth +
-  per-field resolvers → the Lambda data source) and `lambda` (deploy
-  `api/dist/resolver.mjs`, VPC config from `network`, DB secret from `aurora`) so
-  the events/asks slice runs end-to-end on real AWS. ← **NEXT**
-- **Schema migration on deploy:** decide how `db/V1_baseline.sql` + seeds get
-  applied to Aurora (one-shot Lambda / CI step against the cluster).
+- ✅ **Resolver on AWS + migration path** — DONE. `infra/modules/{lambda,appsync}`
+  deploy the resolver behind Cognito-authed AppSync; `api/src/migrate.mjs` applies
+  the `db/` schema to Aurora (tracked, idempotent, seed-gated).
+- **Live smoke test on real AWS:** `terraform apply` a `dev` stack, invoke the
+  migrate Lambda with `applySeed`, then exercise the GraphQL endpoint with a
+  Cognito user and confirm tenant isolation end-to-end. ← **NEXT**
+- **Edge module:** `infra/modules/edge` (S3 + CloudFront + WAF) to serve the SPA,
+  then build the `web/` frontend against the GraphQL endpoint.
+- **Grow the domain:** extend `db/V1_baseline.sql` (or `db/migrations/`) +
+  `api/schema.graphql` + the resolver dispatch, each covered by the suites.
 - **Grow the schema surface:** add the next domains to `V1_baseline.sql` (or split
   into `db/migrations/`), each with RLS policies + RPCs + baseline-test coverage,
   and extend `api/schema.graphql` + the resolver to match.
 - ✅ **Leak suite in CI** — DONE (`.github/workflows/leak-suite.yml`, workflow
   `ci`; runs the DB + API suites on any `db/**` or `api/**` change).
 
-Recommended order: wire the resolver slice (appsync + lambda) on real AWS with a
-schema-migration path → grow schema/resolver domain-by-domain.
+Recommended order: live smoke test on a real `dev` stack → edge module + `web/`
+SPA → grow schema/resolver domain-by-domain.
 
 ## 7. Conventions & guardrails
 
