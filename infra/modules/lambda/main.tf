@@ -49,6 +49,13 @@ locals {
     DB_NAME       = var.db_name
     DB_PORT       = tostring(var.db_port)
   }
+
+  # The agent worker publishes activity to AppSync; it looks up the GraphQL URL
+  # from this SSM parameter (written by the appsync module). Using the static
+  # parameter name here avoids a lambda↔appsync dependency cycle.
+  worker_env = merge(local.db_env, {
+    APPSYNC_URL_PARAM = "/stratos/${var.environment}/appsync/graphql-url"
+  })
 }
 
 data "archive_file" "bundle" {
@@ -202,7 +209,7 @@ resource "aws_lambda_function" "agent_worker" {
     security_group_ids = [var.security_group_id]
   }
 
-  environment { variables = local.db_env }
+  environment { variables = local.worker_env }
 
   depends_on = [
     aws_iam_role_policy_attachment.basic,

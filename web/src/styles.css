@@ -253,6 +253,38 @@ input:focus {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
+.pill-act {
+  color: var(--crit);
+  border-color: color-mix(in srgb, var(--crit) 40%, transparent);
+}
+.pill-ask {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+.pill-skip {
+  color: var(--muted);
+}
+
+.panel-wide {
+  grid-column: 1 / -1;
+}
+.activity {
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.activity:first-child {
+  border-top: none;
+}
+.activity-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.activity-why {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
 
 .sev {
   font-size: 11px;

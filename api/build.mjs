@@ -24,7 +24,8 @@ await esbuild.build({
   external: [
     'pg-native', // optional pg dependency we don't use
     // The Node.js runtime bundles the v2-era clients we rely on; keep those
-    // external. Bedrock Runtime is NOT guaranteed present, so it gets bundled.
+    // external. Everything not guaranteed present gets bundled: Bedrock Runtime
+    // (agent act path) and the SigV4 signing stack + SSM (agent AppSync push).
     '@aws-sdk/client-secrets-manager',
   ],
   // pg uses require() internally; shim it under ESM output.

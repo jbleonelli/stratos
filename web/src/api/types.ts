@@ -41,6 +41,19 @@ export interface Ask {
   resolvedAt: string | null;
 }
 
+export type AgentDecision = 'act' | 'ask' | 'skip';
+
+export interface AgentActivity {
+  id: string;
+  organizationId: string;
+  eventId: string | null;
+  decision: AgentDecision;
+  rationale: string | null;
+  costCents: number;
+  askId: string | null;
+  createdAt: string;
+}
+
 export interface RaiseAskInput {
   question: string;
   locationId?: string | null;

@@ -62,3 +62,11 @@ export const ON_EVENT_INGESTED = /* GraphQL */ `
     }
   }
 `;
+
+export const ON_AGENT_ACTIVITY = /* GraphQL */ `
+  subscription OnAgentActivity($organizationId: ID!) {
+    onAgentActivity(organizationId: $organizationId) {
+      id organizationId eventId decision rationale costCents askId createdAt
+    }
+  }
+`;

@@ -43,6 +43,7 @@ module "appsync" {
   environment          = var.environment
   cognito_user_pool_id = module.cognito.user_pool_id
   resolver_lambda_arn  = module.lambda.resolver_arn
+  worker_role_name     = module.lambda.role_name
 }
 
 module "eventbridge" {

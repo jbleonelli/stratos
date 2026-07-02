@@ -1,6 +1,6 @@
 # Agent runtime — EventBridge + SQS + Step Functions
 
-**Status:** 🟢 First slice landed · 2026-07-02
+**Status:** 🟢 First slice landed · push-to-UI wired · 2026-07-02
 
 > **Built:** the ingest + decision path is real and test-covered.
 > - **DB** (`db/migrations/002_agent_runtime.sql`) — per-org hourly spend budget
@@ -18,16 +18,26 @@
 >   (Claude via `InvokeModel`, SDK lazy-loaded); tests inject a fake. The
 >   returned rationale + cost are recorded on the run, so the guard meters real
 >   spend. Worker role gets `bedrock:InvokeModel`.
+> - **Push to UI** (`api/src/appsync-publish.mjs`) — after recording a decision
+>   the worker fans it out live to the SPA. AppSync only notifies subscribers on
+>   a **mutation**, so the agent calls the IAM-only `publishAgentActivity` (a
+>   NONE-data-source passthrough) with SigV4; `onAgentActivity(organizationId)`
+>   subscribers receive it. AppSync now runs dual auth: Cognito (SPA) + AWS_IAM
+>   (agent). The GraphQL URL is read at runtime from an SSM parameter (static
+>   name → no lambda↔appsync module cycle). Publishing is **best-effort**: a
+>   fan-out failure never fails the run (the decision is already durable).
+>   Covered by the publish-seam tests in `api/test/agent.test.mjs`; the SPA feed
+>   is `web/src/components/AgentActivityPanel.tsx` + `queries/useAgentActivity.ts`.
 > - **Infra** — `modules/eventbridge` (custom bus + routing rule + SQS work
 >   queue with a DLQ + SQS→worker mapping), `modules/lambda` (the worker
->   function + Bedrock permission), `modules/stepfunctions` (a Standard state
->   machine: a retryable AgentTick task → Choice on the decision).
->   `terraform validate` passes.
+>   function + Bedrock permission + `APPSYNC_URL_PARAM`), `modules/appsync`
+>   (dual auth, NONE publish resolver, SSM URL param, worker publish policy),
+>   `modules/stepfunctions` (a Standard state machine: a retryable AgentTick task
+>   → Choice on the decision). `terraform validate` passes.
 >
-> **Not yet built:** the AppSync push-to-UI mutation after a write (so the SPA
-> updates live from an agent action), splitting the spend guard into a discrete
-> Step Functions state, and token-accurate Bedrock cost accounting (currently a
-> per-invoke approximation).
+> **Not yet built:** splitting the spend guard into a discrete Step Functions
+> state, and token-accurate Bedrock cost accounting (currently a per-invoke
+> approximation).
 
 The agent runtime is **event-driven and durable by design**, built entirely on
 native AWS primitives so every decision is retryable, observable, and cost-gated.

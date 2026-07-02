@@ -1,10 +1,14 @@
-# Stratos — GraphQL API (events/asks vertical slice).
+# Stratos — GraphQL API (events/asks vertical slice + agent activity).
 #
-# Auth: Amazon Cognito user pools (default DENY). Every field is backed by the
-# Lambda resolver in src/resolver.mjs, which enforces app-layer authorization and
-# runs DB work through the claim bridge (RLS backstop). Subscriptions are
-# AppSync-native: the listed mutations publish to subscribers filtered by
-# organizationId — no resolver code required.
+# Auth: Amazon Cognito user pools (primary) for the SPA; AWS_IAM (additional) so
+# the agent runtime can publish activity server-side. Every Query/Mutation field
+# is backed by the Lambda resolver in src/resolver.mjs (app-layer authz + the RLS
+# claim bridge). Subscriptions are AppSync-native: the listed mutations publish
+# to subscribers filtered by organizationId — no resolver code required.
+#
+# publishAgentActivity is a NONE-data-source passthrough used ONLY to fan out an
+# agent decision to onAgentActivity subscribers; the agent worker calls it with
+# SigV4 (AWS_IAM). Types reachable by both auth modes carry both directives.
 
 enum EventKind { sensor_reading device_alert manual webhook schedule }
 enum EventSeverity { info warning critical }
@@ -47,6 +51,31 @@ type Ask {
   resolvedAt: AWSDateTime
 }
 
+# An agent decision, fanned out live to the SPA. Reachable by the SPA (Cognito
+# subscription) and the agent worker (IAM mutation), so it carries both auth
+# directives.
+type AgentActivity @aws_iam @aws_cognito_user_pools {
+  id: ID!
+  organizationId: ID!
+  eventId: ID
+  decision: String!
+  rationale: String
+  costCents: Int!
+  askId: ID
+  createdAt: AWSDateTime!
+}
+
+input PublishAgentActivityInput {
+  id: ID!
+  organizationId: ID!
+  eventId: ID
+  decision: String!
+  rationale: String
+  costCents: Int!
+  askId: ID
+  createdAt: AWSDateTime!
+}
+
 input RaiseAskInput {
   question: String!
   locationId: ID
@@ -77,6 +106,10 @@ type Mutation {
   raiseAsk(input: RaiseAskInput!): Ask!
   answerAsk(input: AnswerAskInput!): Ask!
   ingestEvent(input: IngestEventInput!): Event!
+  # Server-to-server only (AWS_IAM): the agent runtime publishes a decision so
+  # onAgentActivity subscribers get it live. Not for SPA callers.
+  publishAgentActivity(input: PublishAgentActivityInput!): AgentActivity
+    @aws_iam
 }
 
 type Subscription {
@@ -84,4 +117,7 @@ type Subscription {
     @aws_subscribe(mutations: ["raiseAsk"])
   onEventIngested(organizationId: ID!): Event
     @aws_subscribe(mutations: ["ingestEvent"])
+  onAgentActivity(organizationId: ID!): AgentActivity
+    @aws_subscribe(mutations: ["publishAgentActivity"])
+    @aws_cognito_user_pools
 }

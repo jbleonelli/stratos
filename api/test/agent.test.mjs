@@ -156,6 +156,46 @@ test('spend guard precedes the reasoner — no model call when budget exhausted'
   assert.equal(called, 0);
 });
 
+// ─────────────────────────── publish seam ──────────────────────────────────
+
+test('every processed signal publishes an activity (org-scoped, decision-tagged)', async () => {
+  const published = [];
+  const w = createWorker(async () => pg, {
+    publish: async (a) => {
+      published.push(a);
+      return { published: true };
+    },
+  });
+  const out = await w(signal({ organizationId: ORG.alpha, severity: 'warning', eventId: EVENT.alpha }));
+  assert.equal(published.length, 1);
+  const a = published[0];
+  assert.equal(a.organizationId, ORG.alpha);
+  assert.equal(a.decision, 'ask');
+  assert.equal(a.eventId, EVENT.alpha);
+  assert.equal(a.askId, out.results[0].askId); // the ask it just raised
+  assert.ok(a.id && a.createdAt); // fan-out payload is fully formed
+  assert.equal(out.results[0].published, true);
+});
+
+test('a publish failure is swallowed — the run still succeeds', async () => {
+  const w = createWorker(async () => pg, {
+    publish: async () => {
+      throw new Error('appsync unreachable');
+    },
+  });
+  const out = await w(signal({ organizationId: ORG.alpha, severity: 'info', eventId: EVENT.alpha }));
+  assert.equal(out.ok, true);
+  assert.equal(out.results[0].decision, 'skip');
+  assert.ok(out.results[0].runId); // decision was durably recorded
+  assert.equal(out.results[0].published, false);
+});
+
+test('default publisher is a no-op (published=false), never blocks a run', async () => {
+  const w = createWorker(async () => pg); // no publish injected
+  const out = await w(signal({ organizationId: ORG.alpha, severity: 'info', eventId: EVENT.alpha }));
+  assert.equal(out.results[0].published, false);
+});
+
 // ─────────────────────────── delivery shapes ───────────────────────────────
 
 test('normalize handles an SQS batch of EventBridge envelopes', async () => {

@@ -9,7 +9,12 @@
     "build": "node build.mjs"
   },
   "dependencies": {
+    "@aws-crypto/sha256-js": "^5.2.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1079.0",
+    "@aws-sdk/client-ssm": "^3.1079.0",
+    "@aws-sdk/credential-providers": "^3.1079.0",
+    "@smithy/protocol-http": "^5.5.5",
+    "@smithy/signature-v4": "^5.6.1",
     "pg": "^8.13.1"
   },
   "devDependencies": {

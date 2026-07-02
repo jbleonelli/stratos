@@ -15,6 +15,11 @@ variable "resolver_lambda_arn" {
   description = "ARN of the resolver Lambda backing every Query/Mutation field."
 }
 
+variable "worker_role_name" {
+  type        = string
+  description = "Agent worker execution role — granted appsync:GraphQL on publishAgentActivity + read of the URL parameter."
+}
+
 locals {
   name = "stratos-${var.environment}"
 
@@ -47,6 +52,16 @@ locals {
   VTL
 
   response_template = "$util.toJson($context.result)"
+
+  # publishAgentActivity is a NONE-data-source passthrough: it just echoes the
+  # input back as the mutation result, which AppSync delivers to
+  # onAgentActivity subscribers. No DB, no Lambda.
+  publish_request_template = <<-VTL
+    {
+      "version": "2017-02-28",
+      "payload": $util.toJson($context.arguments.input)
+    }
+  VTL
 }
 
 data "aws_region" "current" {}
@@ -59,6 +74,11 @@ resource "aws_appsync_graphql_api" "this" {
     user_pool_id   = var.cognito_user_pool_id
     aws_region     = data.aws_region.current.name
     default_action = "ALLOW"
+  }
+
+  # The agent runtime authenticates with SigV4 to publish activity.
+  additional_authentication_provider {
+    authentication_type = "AWS_IAM"
   }
 
   schema = file("${path.module}/../../../api/schema.graphql")
@@ -113,6 +133,51 @@ resource "aws_appsync_resolver" "field" {
   data_source       = aws_appsync_datasource.resolver.name
   request_template  = local.request_template
   response_template = local.response_template
+}
+
+# ── Agent activity fan-out (NONE data source, IAM-only mutation) ────────────
+
+resource "aws_appsync_datasource" "publish" {
+  api_id = aws_appsync_graphql_api.this.id
+  name   = "agent_publish"
+  type   = "NONE"
+}
+
+resource "aws_appsync_resolver" "publish" {
+  api_id            = aws_appsync_graphql_api.this.id
+  type              = "Mutation"
+  field             = "publishAgentActivity"
+  data_source       = aws_appsync_datasource.publish.name
+  request_template  = local.publish_request_template
+  response_template = local.response_template
+}
+
+# The worker resolves this at runtime (avoids a lambda↔appsync module cycle:
+# the parameter NAME is static, so the Lambda module can reference it without
+# depending on this module).
+resource "aws_ssm_parameter" "graphql_url" {
+  name  = "/stratos/${var.environment}/appsync/graphql-url"
+  type  = "String"
+  value = aws_appsync_graphql_api.this.uris["GRAPHQL"]
+}
+
+data "aws_iam_policy_document" "worker_publish" {
+  statement {
+    sid       = "PublishActivity"
+    actions   = ["appsync:GraphQL"]
+    resources = ["${aws_appsync_graphql_api.this.arn}/types/Mutation/fields/publishAgentActivity"]
+  }
+  statement {
+    sid       = "ReadGraphqlUrl"
+    actions   = ["ssm:GetParameter"]
+    resources = [aws_ssm_parameter.graphql_url.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "worker_publish" {
+  name   = "agent-appsync-publish"
+  role   = var.worker_role_name
+  policy = data.aws_iam_policy_document.worker_publish.json
 }
 
 output "graphql_url" { value = aws_appsync_graphql_api.this.uris["GRAPHQL"] }

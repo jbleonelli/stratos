@@ -13,8 +13,10 @@
 // DEFINER system RPCs from db/migrations/002_agent_runtime.sql (no claim
 // bridge). `createWorker(getConnection)` lets tests inject a PGlite connection.
 
+import { randomUUID } from 'node:crypto';
 import { decide } from './agent-core.mjs';
 import { defaultReasoner } from './bedrock.mjs';
+import { defaultPublisher } from './appsync-publish.mjs';
 
 function parseSignal(body) {
   const b = body ?? {};
@@ -41,7 +43,7 @@ export function normalize(event) {
   return [parseSignal(event)]; // Step Functions task input / direct invoke
 }
 
-async function processSignal(conn, signal, reason) {
+async function processSignal(conn, signal, reason, publish) {
   if (!signal.organizationId) {
     throw new Error('signal missing organizationId');
   }
@@ -86,6 +88,26 @@ async function processSignal(conn, signal, reason) {
     askId = ask.rows[0]?.id ?? null;
   }
 
+  // Push the decision to the SPA (best-effort: a fan-out failure must not fail
+  // the run — the decision is already durably recorded).
+  const activity = {
+    id: randomUUID(),
+    organizationId: signal.organizationId,
+    eventId: signal.eventId ?? null,
+    decision,
+    rationale,
+    costCents: cost,
+    askId,
+    createdAt: new Date().toISOString(),
+  };
+  let published = false;
+  try {
+    const res = await publish(activity);
+    published = res?.published ?? false;
+  } catch (err) {
+    console.error('agent activity publish failed', err);
+  }
+
   return {
     organizationId: signal.organizationId,
     eventId: signal.eventId,
@@ -93,25 +115,29 @@ async function processSignal(conn, signal, reason) {
     costCents: cost,
     runId,
     askId,
+    published,
   };
 }
 
 /**
  * Factory.
  * @param {() => Promise<{query:Function, release?:Function}>} getConnection single connection
- * @param {{reason?: (signal:object, decision:object) => Promise<{rationale?:string, costCents?:number}>}} [opts]
- *        `reason` is the act-path reasoner; defaults to the deterministic
- *        fallback (no model call). Production passes a Bedrock reasoner.
+ * @param {{reason?: Function, publish?: Function}} [opts]
+ *        `reason` is the act-path reasoner (defaults to the deterministic
+ *        fallback; production passes a Bedrock reasoner). `publish` fans the
+ *        decision out to AppSync subscribers (defaults to a no-op; production
+ *        passes the SigV4 AppSync publisher).
  */
 export function createWorker(getConnection, opts = {}) {
   const reason = opts.reason ?? defaultReasoner();
+  const publish = opts.publish ?? defaultPublisher();
   return async function handler(event) {
     const signals = normalize(event);
     const conn = await getConnection();
     try {
       const results = [];
       for (const signal of signals) {
-        results.push(await processSignal(conn, signal, reason));
+        results.push(await processSignal(conn, signal, reason, publish));
       }
       return { ok: true, processed: results.length, results };
     } finally {
@@ -121,11 +147,14 @@ export function createWorker(getConnection, opts = {}) {
 }
 
 // Default production handler: one pooled pg connection per invocation, reasoning
-// via Bedrock on the act path.
+// via Bedrock on the act path and pushing activity to AppSync subscribers.
 export const handler = createWorker(
   async () => {
     const { getConnection } = await import('./pg-client.mjs');
     return getConnection();
   },
-  { reason: (await import('./bedrock.mjs')).makeBedrockReasoner() },
+  {
+    reason: (await import('./bedrock.mjs')).makeBedrockReasoner(),
+    publish: (await import('./appsync-publish.mjs')).makeAppSyncPublisher(),
+  },
 );
