@@ -14,6 +14,7 @@
 // bridge). `createWorker(getConnection)` lets tests inject a PGlite connection.
 
 import { decide } from './agent-core.mjs';
+import { defaultReasoner } from './bedrock.mjs';
 
 function parseSignal(body) {
   const b = body ?? {};
@@ -40,7 +41,7 @@ export function normalize(event) {
   return [parseSignal(event)]; // Step Functions task input / direct invoke
 }
 
-async function processSignal(conn, signal) {
+async function processSignal(conn, signal, reason) {
   if (!signal.organizationId) {
     throw new Error('signal missing organizationId');
   }
@@ -56,12 +57,15 @@ async function processSignal(conn, signal) {
       d.estCostCents,
     ]);
     if (!rows[0]?.ok) {
+      // Spend guard breached: defer rather than call the model.
       decision = 'skip';
       rationale = `Spend guard: hourly budget exhausted — deferring ${signal.kind}.`;
     } else {
-      // A real remediation path would invoke Bedrock here; we book the
-      // estimated cost so the spend guard accounts for it.
-      cost = d.estCostCents;
+      // Within budget: invoke the reasoner (Bedrock in prod) and book the
+      // actual cost it reports so the guard meters accurately.
+      const result = await reason(signal, d);
+      rationale = result.rationale ?? rationale;
+      cost = Number.isFinite(result.costCents) ? result.costCents : d.estCostCents;
     }
   }
 
@@ -92,15 +96,22 @@ async function processSignal(conn, signal) {
   };
 }
 
-/** Factory: `getConnection()` returns a single connection, optionally with `.release()`. */
-export function createWorker(getConnection) {
+/**
+ * Factory.
+ * @param {() => Promise<{query:Function, release?:Function}>} getConnection single connection
+ * @param {{reason?: (signal:object, decision:object) => Promise<{rationale?:string, costCents?:number}>}} [opts]
+ *        `reason` is the act-path reasoner; defaults to the deterministic
+ *        fallback (no model call). Production passes a Bedrock reasoner.
+ */
+export function createWorker(getConnection, opts = {}) {
+  const reason = opts.reason ?? defaultReasoner();
   return async function handler(event) {
     const signals = normalize(event);
     const conn = await getConnection();
     try {
       const results = [];
       for (const signal of signals) {
-        results.push(await processSignal(conn, signal));
+        results.push(await processSignal(conn, signal, reason));
       }
       return { ok: true, processed: results.length, results };
     } finally {
@@ -109,8 +120,12 @@ export function createWorker(getConnection) {
   };
 }
 
-// Default production handler: one pooled pg connection per invocation.
-export const handler = createWorker(async () => {
-  const { getConnection } = await import('./pg-client.mjs');
-  return getConnection();
-});
+// Default production handler: one pooled pg connection per invocation, reasoning
+// via Bedrock on the act path.
+export const handler = createWorker(
+  async () => {
+    const { getConnection } = await import('./pg-client.mjs');
+    return getConnection();
+  },
+  { reason: (await import('./bedrock.mjs')).makeBedrockReasoner() },
+);

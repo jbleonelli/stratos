@@ -110,6 +110,52 @@ test('spend guard short-circuits act → skip when the org budget is exhausted',
   assert.equal((await asksFor(ORG.beta)).length, asksBefore); // no ask on skip
 });
 
+// ─────────────────────────── reasoner seam ─────────────────────────────────
+
+test('act path invokes the injected reasoner; model cost + rationale are recorded', async () => {
+  const calls = [];
+  const w = createWorker(async () => pg, {
+    reason: async (sig) => {
+      calls.push(sig);
+      return { rationale: 'Model plan: throttle intake and alert facilities.', costCents: 7 };
+    },
+  });
+  const out = await w(signal({ organizationId: ORG.platform, severity: 'critical' }));
+  assert.equal(out.results[0].decision, 'act');
+  assert.equal(out.results[0].costCents, 7); // from the model, not the estimate
+  assert.equal(calls.length, 1);
+  const run = (await runsFor(ORG.platform)).at(-1);
+  assert.equal(run.rationale, 'Model plan: throttle intake and alert facilities.');
+  assert.equal(run.cost_cents, 7);
+});
+
+test('reasoner is never called for ask/skip decisions', async () => {
+  let called = 0;
+  const w = createWorker(async () => pg, {
+    reason: async () => {
+      called += 1;
+      return { rationale: 'x', costCents: 1 };
+    },
+  });
+  await w(signal({ organizationId: ORG.platform, severity: 'warning' }));
+  await w(signal({ organizationId: ORG.platform, severity: 'info' }));
+  assert.equal(called, 0);
+});
+
+test('spend guard precedes the reasoner — no model call when budget exhausted', async () => {
+  await pg.query('update public.organizations set agent_hourly_budget_cents = 0 where id = $1', [ORG.platform]);
+  let called = 0;
+  const w = createWorker(async () => pg, {
+    reason: async () => {
+      called += 1;
+      return { rationale: 'x', costCents: 1 };
+    },
+  });
+  const out = await w(signal({ organizationId: ORG.platform, severity: 'critical' }));
+  assert.equal(out.results[0].decision, 'skip');
+  assert.equal(called, 0);
+});
+
 // ─────────────────────────── delivery shapes ───────────────────────────────
 
 test('normalize handles an SQS batch of EventBridge envelopes', async () => {

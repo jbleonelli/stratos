@@ -97,6 +97,20 @@ resource "aws_iam_role_policy" "read_secret" {
   policy = data.aws_iam_policy_document.read_secret.json
 }
 
+# The agent worker reasons via Bedrock on the act path.
+data "aws_iam_policy_document" "bedrock" {
+  statement {
+    actions   = ["bedrock:InvokeModel"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "bedrock" {
+  name   = "invoke-bedrock"
+  role   = aws_iam_role.this.id
+  policy = data.aws_iam_policy_document.bedrock.json
+}
+
 # ── Resolver function (invoked by AppSync) ──────────────────────────────────
 
 resource "aws_cloudwatch_log_group" "resolver" {

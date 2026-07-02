@@ -13,14 +13,21 @@
 >   (critical→act, warning→ask, info→skip), enforces the spend guard on
 >   LLM-backed decisions, records the run, and raises operator asks. Proven by
 >   `api/test/agent.test.mjs` on PGlite.
+> - **Reasoner** (`api/src/bedrock.mjs`) — the `act` path invokes a pluggable
+>   reasoner behind the spend guard. Production uses an Amazon Bedrock adapter
+>   (Claude via `InvokeModel`, SDK lazy-loaded); tests inject a fake. The
+>   returned rationale + cost are recorded on the run, so the guard meters real
+>   spend. Worker role gets `bedrock:InvokeModel`.
 > - **Infra** — `modules/eventbridge` (custom bus + routing rule + SQS work
 >   queue with a DLQ + SQS→worker mapping), `modules/lambda` (the worker
->   function), `modules/stepfunctions` (a Standard state machine: a retryable
->   AgentTick task → Choice on the decision). `terraform validate` passes.
+>   function + Bedrock permission), `modules/stepfunctions` (a Standard state
+>   machine: a retryable AgentTick task → Choice on the decision).
+>   `terraform validate` passes.
 >
-> **Not yet built:** the real Bedrock invoke (the `act` path books an estimated
-> cost but does not call the model yet), the AppSync push-to-UI mutation after a
-> write, and splitting the spend guard into a discrete Step Functions state.
+> **Not yet built:** the AppSync push-to-UI mutation after a write (so the SPA
+> updates live from an agent action), splitting the spend guard into a discrete
+> Step Functions state, and token-accurate Bedrock cost accounting (currently a
+> per-invoke approximation).
 
 The agent runtime is **event-driven and durable by design**, built entirely on
 native AWS primitives so every decision is retryable, observable, and cost-gated.

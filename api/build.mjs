@@ -23,7 +23,9 @@ await esbuild.build({
   loader: { '.sql': 'text' },
   external: [
     'pg-native', // optional pg dependency we don't use
-    '@aws-sdk/*', // provided by the Lambda Node.js runtime
+    // The Node.js runtime bundles the v2-era clients we rely on; keep those
+    // external. Bedrock Runtime is NOT guaranteed present, so it gets bundled.
+    '@aws-sdk/client-secrets-manager',
   ],
   // pg uses require() internally; shim it under ESM output.
   banner: {
