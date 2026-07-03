@@ -59,6 +59,6 @@ variable "enable_nat" {
 
 variable "bedrock_model_id" {
   type        = string
-  description = "Bedrock model / cross-region inference profile the agent's act path invokes. The account must have model access enabled for it. Empty → the code default in api/src/bedrock.mjs."
-  default     = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+  description = "Bedrock model / cross-region inference profile the agent's act path invokes. The account must have model access enabled for it. Empty → the code default in api/src/bedrock.mjs. Stronger option: us.anthropic.claude-sonnet-4-5-20250929-v1:0."
+  default     = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 }

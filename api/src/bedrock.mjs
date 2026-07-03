@@ -43,9 +43,10 @@ export function makeBedrockReasoner(opts = {}) {
   // Bedrock are only invokable on-demand via an inference profile (the region
   // prefix, e.g. `us.`), not the bare foundation-model id. The account must have
   // model access enabled for whatever id is used here. Override per environment
-  // with BEDROCK_MODEL_ID. (The prior default, ...claude-3-5-sonnet-20240620...,
-  // is now end-of-life and returns ResourceNotFoundException.)
-  const modelId = opts.modelId ?? process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-3-5-sonnet-20241022-v2:0';
+  // with BEDROCK_MODEL_ID (e.g. us.anthropic.claude-sonnet-4-5-20250929-v1:0 for
+  // stronger reasoning). Haiku 4.5 is the cost-effective default for the agent's
+  // short remediation plans.
+  const modelId = opts.modelId ?? process.env.BEDROCK_MODEL_ID ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
   const invokeCostCents = opts.invokeCostCents ?? Number(process.env.BEDROCK_INVOKE_COST_CENTS ?? 3);
 
   let client;
