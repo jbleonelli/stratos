@@ -101,7 +101,12 @@ jobs:
             --function-name "$FN" \
             --payload '{"applySeed":true,"seedDemoUsersAfterSeed":true}' \
             --cli-binary-format raw-in-base64-out \
-            /dev/stdout
+            /tmp/migrate-out.json
+          cat /tmp/migrate-out.json
+          if grep -q FunctionError /tmp/migrate-out.json 2>/dev/null; then
+            echo "Migrate/seed Lambda failed" >&2
+            exit 1
+          fi
           echo ""
           echo "Demo logins — password for all: Stratos-Demo1!"
           echo "  admin@alpha.example, worker@alpha.example, admin@beta.example,"

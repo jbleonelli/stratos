@@ -203,6 +203,8 @@ data "aws_iam_policy_document" "cognito_admin" {
     actions = [
       "cognito-idp:AdminCreateUser",
       "cognito-idp:AdminGetUser",
+      "cognito-idp:AdminSetUserPassword",
+      "cognito-idp:AdminUpdateUserAttributes",
     ]
     resources = [local.cognito_user_pool_arn]
   }
