@@ -10,13 +10,13 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { createResolver } from '../src/resolver.mjs';
+import { loadTestSchema } from './load-test-schema.mjs';
 import { ForbiddenError, UnauthenticatedError } from '../src/authz.mjs';
-import { ORG, USER, ASK, LOC } from '../../db/proof/fixtures.mjs';
+import { ORG, USER, ASK, LOC, CONTRACT } from '../../db/proof/fixtures.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const db = join(here, '..', '..', 'db');
@@ -26,12 +26,7 @@ let handler;
 
 before(async () => {
   pg = new PGlite();
-  await pg.exec(await readFile(join(db, 'helpers', '001_authz.sql'), 'utf8'));
-  await pg.exec(await readFile(join(db, 'V1_baseline.sql'), 'utf8'));
-  await pg.exec(await readFile(join(db, 'migrations', '002_agent_runtime.sql'), 'utf8'));
-  await pg.exec(await readFile(join(db, 'migrations', '003_admin.sql'), 'utf8'));
-  await pg.exec(await readFile(join(db, 'migrations', '004_location_grants_admin.sql'), 'utf8'));
-  await pg.exec(await readFile(join(db, 'seed', 'dev.sql'), 'utf8'));
+  await loadTestSchema(pg, db);
   handler = createResolver(async () => pg); // single shared connection, no release
 });
 
@@ -40,9 +35,9 @@ after(async () => {
 });
 
 // AppSync identity + event helpers.
-const identity = (sub, organization_id = null, platform_role = null) => ({
+const identity = (sub, organization_id = null, platform_role = null, email = null) => ({
   sub,
-  claims: { organization_id, platform_role },
+  claims: { organization_id, platform_role, email },
 });
 const ev = (parentTypeName, fieldName, args, ident) => ({
   info: { parentTypeName, fieldName },
@@ -55,7 +50,8 @@ const AS = {
   alphaScoped: identity(USER.alphaScoped, ORG.alpha),
   betaAdmin: identity(USER.betaAdmin, ORG.beta),
   platform: identity(USER.platform, ORG.alpha, 'platform_admin'),
-  noOrg: identity('05e0dead-0000-0000-0000-000000000001', null),
+  swiftTech: identity(USER.swiftTech, ORG.swift, null, 'tech@swift.example'),
+  noOrg: identity('05e0dead-0000-0000-0000-000000000001', null, null, 'newuser@example.com'),
   anonymous: null,
 };
 
@@ -355,6 +351,64 @@ test('an emit failure is swallowed — the event write still returns', async () 
   );
   assert.ok(event.id);
   assert.equal(event.organizationId, ORG.alpha);
+});
+
+// ─────────────────────────── Invites ─────────────────────────────────────
+
+test('Mutation.inviteOrgMember creates a pending invite with token', async () => {
+  const res = await handler(
+    ev('Mutation', 'inviteOrgMember', { input: { email: 'guest@alpha.example', role: 'member' } }, AS.alphaAdmin),
+  );
+  assert.equal(res.invite.email, 'guest@alpha.example');
+  assert.equal(res.invite.status, 'pending');
+  assert.ok(res.inviteToken.length > 10);
+  const invites = await handler(ev('Query', 'orgInvites', { status: 'pending' }, AS.alphaAdmin));
+  assert.ok(invites.some((i) => i.email === 'guest@alpha.example'));
+});
+
+test('Mutation.acceptOrgInvite materializes membership for matching email', async () => {
+  const res = await handler(
+    ev('Mutation', 'inviteOrgMember', { input: { email: 'joiner@alpha.example' } }, AS.alphaAdmin),
+  );
+  await pg.query(
+    `insert into public.profiles (user_id, email, role) values ($1, $2, 'viewer')
+     on conflict (user_id) do update set email = excluded.email`,
+    ['05e0dead-0000-0000-0000-000000000002', 'joiner@alpha.example'],
+  );
+  const member = await handler(
+    ev(
+      'Mutation',
+      'acceptOrgInvite',
+      { input: { token: res.inviteToken } },
+      identity('05e0dead-0000-0000-0000-000000000002', null, null, 'joiner@alpha.example'),
+    ),
+  );
+  assert.equal(member.email, 'joiner@alpha.example');
+  assert.equal(member.orgRole, 'member');
+});
+
+// ─────────────────────────── Contracts + SLA ───────────────────────────────
+
+test('Query.serviceContracts lists customer contracts', async () => {
+  const contracts = await handler(ev('Query', 'serviceContracts', {}, AS.alphaAdmin));
+  assert.equal(contracts.length, 1);
+  assert.equal(contracts[0].id, CONTRACT.alphaHvac);
+  assert.equal(contracts[0].status, 'active');
+  assert.deepEqual(contracts[0].locationIds, [LOC.alphaTower]);
+  assert.equal(contracts[0].slaRules.find((r) => r.severity === 'critical')?.responseMinutes, 60);
+});
+
+test('Query.serviceContracts lists assigned contractor portfolio', async () => {
+  const contracts = await handler(ev('Query', 'serviceContracts', {}, AS.swiftTech));
+  assert.equal(contracts.length, 1);
+  assert.equal(contracts[0].contractorOrgName, 'Swift HVAC Services');
+});
+
+test('Query.locations includes geo coordinates', async () => {
+  const locs = await handler(ev('Query', 'locations', {}, AS.alphaAdmin));
+  const tower = locs.find((l) => l.name === 'Alpha Tower');
+  assert.equal(tower?.latitude, 48.8566);
+  assert.equal(tower?.longitude, 2.3522);
 });
 
 // ─────────────────────────── App-layer authz ───────────────────────────────

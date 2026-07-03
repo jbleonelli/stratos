@@ -37,6 +37,81 @@ export const SET_MEMBER_LOCATION_GRANTS = /* GraphQL */ `
   }
 `;
 
+export const CREATE_ORGANIZATION = /* GraphQL */ `
+  mutation CreateOrganization($input: CreateOrganizationInput!) {
+    createOrganization(input: $input) { id name slug kind lifecycleState createdAt }
+  }
+`;
+
+export const ORG_INVITES = /* GraphQL */ `
+  query OrgInvites($status: InviteStatus) {
+    orgInvites(status: $status) {
+      id email orgRole status locationGrantIds orgWideAccess invitedBy expiresAt createdAt
+    }
+  }
+`;
+
+export const MY_PENDING_INVITES = /* GraphQL */ `
+  query MyPendingInvites {
+    myPendingInvites {
+      id email orgRole status locationGrantIds orgWideAccess invitedBy expiresAt createdAt
+    }
+  }
+`;
+
+export const INVITE_ORG_MEMBER = /* GraphQL */ `
+  mutation InviteOrgMember($input: InviteOrgMemberInput!) {
+    inviteOrgMember(input: $input) {
+      invite { id email orgRole status expiresAt createdAt }
+      inviteToken
+    }
+  }
+`;
+
+export const REVOKE_ORG_INVITE = /* GraphQL */ `
+  mutation RevokeOrgInvite($inviteId: ID!) {
+    revokeOrgInvite(inviteId: $inviteId) { id email status }
+  }
+`;
+
+export const ACCEPT_ORG_INVITE = /* GraphQL */ `
+  mutation AcceptOrgInvite($input: AcceptOrgInviteInput!) {
+    acceptOrgInvite(input: $input) {
+      userId email fullName orgRole userRole joinedAt locationGrantIds orgWideAccess
+    }
+  }
+`;
+
+export const SERVICE_CONTRACTS = /* GraphQL */ `
+  query ServiceContracts($status: ContractStatus) {
+    serviceContracts(status: $status) {
+      id customerOrgId contractorOrgId customerOrgName contractorOrgName
+      name referenceCode status startsAt endsAt locationIds assigneeUserIds createdAt
+      slaRules { severity responseMinutes }
+    }
+  }
+`;
+
+export const CONTRACTOR_ORGANIZATIONS = /* GraphQL */ `
+  query ContractorOrganizations {
+    contractorOrganizations { id name slug kind lifecycleState createdAt }
+  }
+`;
+
+export const CREATE_SERVICE_CONTRACT = /* GraphQL */ `
+  mutation CreateServiceContract($input: CreateServiceContractInput!) {
+    createServiceContract(input: $input) {
+      id name status referenceCode locationIds slaRules { severity responseMinutes }
+    }
+  }
+`;
+
+export const UPDATE_CONTRACT_STATUS = /* GraphQL */ `
+  mutation UpdateContractStatus($id: ID!, $status: ContractStatus!) {
+    updateContractStatus(id: $id, status: $status) { id status }
+  }
+`;
+
 export const ORGANIZATION = /* GraphQL */ `
   query Organization {
     organization { id name slug kind lifecycleState createdAt }
@@ -46,7 +121,7 @@ export const ORGANIZATION = /* GraphQL */ `
 export const LOCATIONS = /* GraphQL */ `
   query Locations {
     locations {
-      id organizationId parentId name kind deviceCount createdAt
+      id organizationId parentId name kind deviceCount latitude longitude createdAt
     }
   }
 `;

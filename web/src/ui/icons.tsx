@@ -148,4 +148,29 @@ export const Icon = {
     ),
   moon: (p: IconProps) => svg(<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" />, p),
   plus: (p: IconProps) => svg(<path d="M12 5v14M5 12h14" />, p),
+  contract: (p: IconProps) =>
+    svg(
+      <>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+        <path d="M14 2v6h6M8 13h8M8 17h5" />
+      </>,
+      p,
+    ),
+  hypervisor: (p: IconProps) =>
+    svg(
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <path d="M6.5 10v4M17.5 10v4M3 17h18" />
+      </>,
+      p,
+    ),
+  mail: (p: IconProps) =>
+    svg(
+      <>
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="m22 7-8.97 5.7a2 2 0 0 1-2.06 0L2 7" />
+      </>,
+      p,
+    ),
 };

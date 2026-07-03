@@ -58,6 +58,19 @@ const ORG_MEMBER_SELECT = `
 export const orgMemberByUserId = (userId) =>
   `${ORG_MEMBER_SELECT} and om.user_id = $1`;
 
+export const orgMemberInOrg = (orgId, userId) => `
+  select om.user_id, om.role as org_role, om.joined_at, p.email, p.full_name, p.role as user_role,
+         coalesce(
+           (select array_agg(g.location_id order by g.location_id)
+              from public.user_location_grants g
+             where g.user_id = om.user_id and g.organization_id = om.org_id),
+           '{}'::uuid[]
+         ) as location_grant_ids
+  from public.organization_members om
+  join public.profiles p on p.user_id = om.user_id
+  where om.org_id = $1 and om.user_id = $2
+`;
+
 export const orgMembersAll = () => `${ORG_MEMBER_SELECT} order by om.joined_at`;
 
 export const toLocation = (r) =>
@@ -68,6 +81,8 @@ export const toLocation = (r) =>
     name: r.name,
     kind: r.kind,
     deviceCount: Number(r.device_count ?? 0),
+    latitude: r.latitude == null ? null : Number(r.latitude),
+    longitude: r.longitude == null ? null : Number(r.longitude),
     createdAt: iso(r.created_at),
   };
 
@@ -142,3 +157,94 @@ export const toAsk = (r) =>
     createdAt: iso(r.created_at),
     resolvedAt: iso(r.resolved_at),
   };
+
+const grantIdsFromRow = (ids) => {
+  const grantIds = Array.isArray(ids) ? ids.map(String) : ids ? [String(ids)] : [];
+  return { locationGrantIds: grantIds, orgWideAccess: grantIds.length === 0 };
+};
+
+export const toOrgInvite = (r) => {
+  if (!r) return null;
+  const grants = grantIdsFromRow(r.location_ids);
+  return {
+    id: r.id,
+    email: r.email,
+    orgRole: r.org_role,
+    status: r.status,
+    invitedBy: r.invited_by,
+    expiresAt: iso(r.expires_at),
+    createdAt: iso(r.created_at),
+    ...grants,
+  };
+};
+
+export const toSlaRule = (r) =>
+  r && {
+    severity: r.severity,
+    responseMinutes: Number(r.response_minutes),
+  };
+
+export const toServiceContract = (r, slaRules = []) => {
+  if (!r) return null;
+  const locationIds = Array.isArray(r.location_ids) ? r.location_ids.map(String) : [];
+  const assigneeUserIds = Array.isArray(r.assignee_user_ids) ? r.assignee_user_ids.map(String) : [];
+  return {
+    id: r.id,
+    customerOrgId: r.customer_org_id,
+    contractorOrgId: r.contractor_org_id,
+    customerOrgName: r.customer_org_name,
+    contractorOrgName: r.contractor_org_name,
+    name: r.name,
+    referenceCode: r.reference_code,
+    status: r.status,
+    startsAt: r.starts_at ?? null,
+    endsAt: r.ends_at ?? null,
+    locationIds,
+    slaRules: slaRules.map(toSlaRule),
+    assigneeUserIds,
+    createdAt: iso(r.created_at),
+  };
+};
+
+export const SERVICE_CONTRACT_SELECT = `
+  select sc.*,
+         co.name as customer_org_name,
+         ctr.name as contractor_org_name,
+         coalesce(
+           (select array_agg(cl.location_id order by cl.location_id)
+              from public.contract_locations cl where cl.contract_id = sc.id),
+           '{}'::uuid[]
+         ) as location_ids,
+         coalesce(
+           (select array_agg(ca.user_id order by ca.user_id)
+              from public.contract_assignments ca where ca.contract_id = sc.id),
+           '{}'::uuid[]
+         ) as assignee_user_ids
+    from public.service_contracts sc
+    join public.organizations co on co.id = sc.customer_org_id
+    join public.organizations ctr on ctr.id = sc.contractor_org_id
+`;
+
+export const serviceContractById = (id) => `${SERVICE_CONTRACT_SELECT} where sc.id = $1`;
+
+export const serviceContractsAll = (status) =>
+  `${SERVICE_CONTRACT_SELECT}
+   where ($1::public.contract_status is null or sc.status = $1::public.contract_status)
+     and (
+       (select public.is_platform_admin())
+       or sc.customer_org_id = (select public.current_user_org())
+       or (
+         sc.contractor_org_id = (select public.current_user_org())
+         and (
+           exists (
+             select 1 from public.organization_members om
+             where om.org_id = sc.contractor_org_id and om.user_id = auth.uid() and om.role in ('owner', 'admin')
+           )
+           or exists (
+             select 1 from public.contract_assignments ca
+             where ca.contract_id = sc.id and ca.user_id = auth.uid()
+           )
+         )
+       )
+     )
+   order by sc.created_at desc`;

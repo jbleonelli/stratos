@@ -19,6 +19,10 @@ import baseline from '../../db/V1_baseline.sql';
 import agentRuntime from '../../db/migrations/002_agent_runtime.sql';
 import admin from '../../db/migrations/003_admin.sql';
 import locationGrantsAdmin from '../../db/migrations/004_location_grants_admin.sql';
+import invites from '../../db/migrations/005_invites.sql';
+import contractsKind from '../../db/migrations/006a_contractor_kind.sql';
+import contracts from '../../db/migrations/006_contracts.sql';
+import locationGeo from '../../db/migrations/007_location_geo.sql';
 import seed from '../../db/seed/dev.sql';
 import process from 'node:process';
 import { runMigrations } from './migrate-core.mjs';
@@ -30,6 +34,10 @@ const MIGRATIONS = [
   { version: '002_agent_runtime', sql: agentRuntime },
   { version: '003_admin', sql: admin },
   { version: '004_location_grants_admin', sql: locationGrantsAdmin },
+  { version: '005_invites', sql: invites },
+  { version: '006a_contractor_kind', sql: contractsKind },
+  { version: '006_contracts', sql: contracts },
+  { version: '007_location_geo', sql: locationGeo },
   { version: 'dev_seed', sql: seed, seed: true },
 ];
 

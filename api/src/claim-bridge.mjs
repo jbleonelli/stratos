@@ -36,6 +36,7 @@ export function claimsFromIdentity(identity) {
   const c = identity?.claims ?? {};
   return {
     sub: identity?.sub ?? c.sub ?? null,
+    email: c.email ?? identity?.email ?? null,
     organization_id: c.organization_id ?? c['custom:organization_id'] ?? null,
     platform_role: c.platform_role ?? c['custom:platform_role'] ?? null,
   };

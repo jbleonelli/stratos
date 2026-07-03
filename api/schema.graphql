@@ -13,7 +13,9 @@
 enum EventKind { sensor_reading device_alert manual webhook schedule }
 enum EventSeverity { info warning critical }
 enum AskStatus { open answered dismissed expired }
-enum OrgKind { customer platform }
+enum OrgKind { customer platform contractor }
+enum InviteStatus { pending accepted revoked expired }
+enum ContractStatus { draft active suspended ended }
 enum OrgLifecycle { trial active suspended deleted }
 enum OrgRole { owner admin member }
 enum LocationKind { building floor zone room }
@@ -54,6 +56,8 @@ type Location {
   name: String!
   kind: LocationKind!
   deviceCount: Int!
+  latitude: Float
+  longitude: Float
   createdAt: AWSDateTime!
 }
 
@@ -183,10 +187,80 @@ input SetMemberLocationGrantsInput {
   locationIds: [ID!]!
 }
 
+type OrgInvite {
+  id: ID!
+  email: String!
+  orgRole: OrgRole!
+  status: InviteStatus!
+  locationGrantIds: [ID!]!
+  orgWideAccess: Boolean!
+  invitedBy: ID!
+  expiresAt: AWSDateTime!
+  createdAt: AWSDateTime!
+}
+
+type InviteOrgMemberPayload {
+  invite: OrgInvite!
+  inviteToken: String!
+}
+
+input InviteOrgMemberInput {
+  email: String!
+  role: OrgRole = member
+  locationIds: [ID!] = []
+}
+
+input AcceptOrgInviteInput {
+  token: String!
+}
+
+input CreateOrganizationInput {
+  companyName: String!
+}
+
+type SlaRule {
+  severity: EventSeverity!
+  responseMinutes: Int!
+}
+
+type ServiceContract {
+  id: ID!
+  customerOrgId: ID!
+  contractorOrgId: ID!
+  customerOrgName: String!
+  contractorOrgName: String!
+  name: String!
+  referenceCode: String
+  status: ContractStatus!
+  startsAt: AWSDate
+  endsAt: AWSDate
+  locationIds: [ID!]!
+  slaRules: [SlaRule!]!
+  assigneeUserIds: [ID!]!
+  createdAt: AWSDateTime!
+}
+
+input SlaRuleInput {
+  severity: EventSeverity!
+  responseMinutes: Int!
+}
+
+input CreateServiceContractInput {
+  contractorOrgId: ID!
+  name: String!
+  referenceCode: String
+  locationIds: [ID!]!
+  slaRules: [SlaRuleInput!]
+}
+
 type Query {
   me: Me
   organization: Organization
   orgMembers: [OrgMember!]!
+  orgInvites(status: InviteStatus): [OrgInvite!]!
+  myPendingInvites: [OrgInvite!]!
+  contractorOrganizations: [Organization!]!
+  serviceContracts(status: ContractStatus): [ServiceContract!]!
   locations: [Location!]!
   devices(locationId: ID, limit: Int = 200): [Device!]!
   events(limit: Int = 50): [Event!]!
@@ -199,6 +273,13 @@ type Query {
 }
 
 type Mutation {
+  createOrganization(input: CreateOrganizationInput!): Organization!
+  inviteOrgMember(input: InviteOrgMemberInput!): InviteOrgMemberPayload!
+  revokeOrgInvite(inviteId: ID!): OrgInvite!
+  acceptOrgInvite(input: AcceptOrgInviteInput!): OrgMember!
+  createServiceContract(input: CreateServiceContractInput!): ServiceContract!
+  updateContractStatus(id: ID!, status: ContractStatus!): ServiceContract!
+  assignContractMember(contractId: ID!, userId: ID!): ServiceContract!
   updateOrganization(input: UpdateOrganizationInput!): Organization!
   updateMemberRole(input: UpdateMemberRoleInput!): OrgMember!
   setMemberLocationGrants(input: SetMemberLocationGrantsInput!): OrgMember!

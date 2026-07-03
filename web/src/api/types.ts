@@ -3,7 +3,9 @@
 export type EventKind = 'sensor_reading' | 'device_alert' | 'manual' | 'webhook' | 'schedule';
 export type EventSeverity = 'info' | 'warning' | 'critical';
 export type AskStatus = 'open' | 'answered' | 'dismissed' | 'expired';
-export type OrgKind = 'customer' | 'platform';
+export type OrgKind = 'customer' | 'platform' | 'contractor';
+export type InviteStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
+export type ContractStatus = 'draft' | 'active' | 'suspended' | 'ended';
 export type OrgLifecycle = 'trial' | 'active' | 'suspended' | 'deleted';
 export type OrgRole = 'owner' | 'admin' | 'member';
 export type LocationKind = 'building' | 'floor' | 'zone' | 'room';
@@ -72,6 +74,8 @@ export interface Location {
   name: string;
   kind: LocationKind;
   deviceCount: number;
+  latitude: number | null;
+  longitude: number | null;
   createdAt: string;
 }
 
@@ -157,4 +161,70 @@ export interface UpdateMemberRoleInput {
 export interface SetMemberLocationGrantsInput {
   userId: string;
   locationIds: string[];
+}
+
+export interface OrgInvite {
+  id: string;
+  email: string;
+  orgRole: OrgRole;
+  status: InviteStatus;
+  locationGrantIds: string[];
+  orgWideAccess: boolean;
+  invitedBy: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface InviteOrgMemberPayload {
+  invite: OrgInvite;
+  inviteToken: string;
+}
+
+export interface InviteOrgMemberInput {
+  email: string;
+  role?: OrgRole;
+  locationIds?: string[];
+}
+
+export interface AcceptOrgInviteInput {
+  token: string;
+}
+
+export interface CreateOrganizationInput {
+  companyName: string;
+}
+
+export interface SlaRule {
+  severity: EventSeverity;
+  responseMinutes: number;
+}
+
+export interface ServiceContract {
+  id: string;
+  customerOrgId: string;
+  contractorOrgId: string;
+  customerOrgName: string;
+  contractorOrgName: string;
+  name: string;
+  referenceCode: string | null;
+  status: ContractStatus;
+  startsAt: string | null;
+  endsAt: string | null;
+  locationIds: string[];
+  slaRules: SlaRule[];
+  assigneeUserIds: string[];
+  createdAt: string;
+}
+
+export interface SlaRuleInput {
+  severity: EventSeverity;
+  responseMinutes: number;
+}
+
+export interface CreateServiceContractInput {
+  contractorOrgId: string;
+  name: string;
+  referenceCode?: string | null;
+  locationIds: string[];
+  slaRules?: SlaRuleInput[];
 }

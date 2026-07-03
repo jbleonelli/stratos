@@ -7,6 +7,7 @@ import { configureAmplify } from './amplify';
 import App from './App';
 import { Wordmark } from './ui/primitives';
 import './tokens.css';
+import 'leaflet/dist/leaflet.css';
 
 configureAmplify();
 

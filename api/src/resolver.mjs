@@ -11,11 +11,41 @@
 // connection (a pg Client in prod, a PGlite instance in tests).
 
 import { withClaims, claimsFromIdentity } from './claim-bridge.mjs';
-import { requireOrg } from './authz.mjs';
-import { toOrganization, toMe, toOrgMember, orgMemberByUserId, orgMembersAll, toLocation, toDevice, toEvent, toAgentRun, toOrgMetrics, toAsk } from './mappers.mjs';
+import { requireOrg, requireAuth } from './authz.mjs';
+import {
+  toOrganization,
+  toMe,
+  toOrgMember,
+  toOrgInvite,
+  orgMemberByUserId,
+  orgMemberInOrg,
+  orgMembersAll,
+  toLocation,
+  toDevice,
+  toEvent,
+  toAgentRun,
+  toOrgMetrics,
+  toAsk,
+  toServiceContract,
+  serviceContractById,
+  serviceContractsAll,
+} from './mappers.mjs';
+import { inviteCognitoUser } from './cognito-admin.mjs';
 import { defaultEmitter, signalFromEvent } from './event-emitter.mjs';
 
+const AUTH_ONLY = new Set([
+  'Mutation.createOrganization',
+  'Mutation.acceptOrgInvite',
+  'Query.myPendingInvites',
+]);
+
 const one = (res) => res.rows[0] ?? null;
+
+async function fetchServiceContract(c, id) {
+  const row = one(await c.query(serviceContractById(id), [id]));
+  const sla = await c.query('select * from public.contract_sla_rules where contract_id = $1 order by severity', [id]);
+  return toServiceContract(row, sla.rows);
+}
 
 async function fetchOrgMetrics(c) {
   const orgId = one(await c.query('select public.current_user_org() as id'))?.id;
@@ -66,6 +96,37 @@ async function run(field, c, args, _claims) {
     case 'Query.orgMembers': {
       const res = await c.query(orgMembersAll());
       return res.rows.map(toOrgMember);
+    }
+
+    case 'Query.orgInvites': {
+      const res = await c.query(
+        `select * from public.organization_invites
+          where org_id = (select public.current_user_org())
+            and ($1::public.invite_status is null or status = $1::public.invite_status)
+          order by created_at desc`,
+        [args?.status ?? null],
+      );
+      return res.rows.map(toOrgInvite);
+    }
+
+    case 'Query.myPendingInvites': {
+      const res = await c.query('select * from public.my_pending_invites()');
+      return res.rows.map(toOrgInvite);
+    }
+
+    case 'Query.contractorOrganizations': {
+      const res = await c.query('select * from public.list_contractor_organizations()');
+      return res.rows.map(toOrganization);
+    }
+
+    case 'Query.serviceContracts': {
+      const res = await c.query(serviceContractsAll(args?.status ?? null), [args?.status ?? null]);
+      const contracts = [];
+      for (const row of res.rows) {
+        const sla = await c.query('select * from public.contract_sla_rules where contract_id = $1 order by severity', [row.id]);
+        contracts.push(toServiceContract(row, sla.rows));
+      }
+      return contracts;
     }
 
     case 'Query.locations': {
@@ -129,6 +190,63 @@ async function run(field, c, args, _claims) {
         [args?.status ?? null],
       );
       return res.rows.map(toAsk);
+    }
+
+    case 'Mutation.createOrganization': {
+      await c.query('select public.ensure_profile($1, $2)', [_claims.email ?? '', null]);
+      const orgId = one(await c.query('select public.self_serve_create_org($1) as id', [input.companyName])).id;
+      return toOrganization(one(await c.query('select * from public.organizations where id = $1', [orgId])));
+    }
+
+    case 'Mutation.inviteOrgMember': {
+      const row = one(
+        await c.query('select * from public.create_org_invite($1, $2::public.org_role, $3::uuid[])', [
+          input.email,
+          input.role ?? 'member',
+          input.locationIds ?? [],
+        ]),
+      );
+      const invite = toOrgInvite(
+        one(await c.query('select * from public.organization_invites where id = $1', [row.invite_id])),
+      );
+      return { invite, inviteToken: row.invite_token };
+    }
+
+    case 'Mutation.revokeOrgInvite': {
+      const inviteId = args?.inviteId;
+      await c.query('select public.revoke_org_invite($1)', [inviteId]);
+      return toOrgInvite(one(await c.query('select * from public.organization_invites where id = $1', [inviteId])));
+    }
+
+    case 'Mutation.acceptOrgInvite': {
+      const orgId = one(await c.query('select public.accept_org_invite($1) as id', [input.token])).id;
+      return toOrgMember(one(await c.query(orgMemberInOrg(orgId, _claims.sub), [orgId, _claims.sub])));
+    }
+
+    case 'Mutation.createServiceContract': {
+      const slaJson = JSON.stringify(
+        (input.slaRules ?? []).map((r) => ({ severity: r.severity, responseMinutes: r.responseMinutes })),
+      );
+      const id = one(
+        await c.query('select public.create_service_contract($1, $2, $3, $4::uuid[], $5::jsonb) as id', [
+          input.contractorOrgId,
+          input.name,
+          input.referenceCode ?? null,
+          input.locationIds,
+          slaJson,
+        ]),
+      ).id;
+      return fetchServiceContract(c, id);
+    }
+
+    case 'Mutation.updateContractStatus': {
+      await c.query('select public.update_contract_status($1, $2::public.contract_status)', [args.id, args.status]);
+      return fetchServiceContract(c, args.id);
+    }
+
+    case 'Mutation.assignContractMember': {
+      await c.query('select public.assign_contract_member($1, $2)', [args.contractId, args.userId]);
+      return fetchServiceContract(c, args.contractId);
     }
 
     case 'Mutation.updateOrganization': {
@@ -196,9 +314,12 @@ export function createResolver(getConnection, opts = {}) {
     const claims = claimsFromIdentity(event.identity);
     const field = `${event.info.parentTypeName}.${event.info.fieldName}`;
 
-    // App-layer authorization (primary). Every field on this slice requires an
-    // authenticated caller with an active org (platform admins exempted).
-    requireOrg(claims);
+    // App-layer authorization (primary).
+    if (AUTH_ONLY.has(field)) {
+      requireAuth(claims);
+    } else {
+      requireOrg(claims);
+    }
 
     const conn = await getConnection();
     let result;
@@ -206,6 +327,14 @@ export function createResolver(getConnection, opts = {}) {
       result = await withClaims(conn, claims, (c) => run(field, c, event.arguments ?? {}, claims));
     } finally {
       await conn.release?.();
+    }
+
+    if (field === 'Mutation.inviteOrgMember' && result?.invite?.email) {
+      try {
+        await inviteCognitoUser(result.invite.email);
+      } catch (err) {
+        console.error('cognito invite failed', err);
+      }
     }
 
     // Signal the agent runtime that a new event landed (best-effort: the event

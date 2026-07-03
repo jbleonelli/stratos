@@ -13,24 +13,28 @@ import { IncidentsScreen } from '../screens/IncidentsScreen';
 import { ActivityScreen } from '../screens/ActivityScreen';
 import { InsightsScreen } from '../screens/InsightsScreen';
 import { AdminScreen } from '../screens/AdminScreen';
+import { HypervisorScreen } from '../screens/HypervisorScreen';
+import { ContractsScreen } from '../screens/ContractsScreen';
 
-type ViewId = 'overview' | 'insights' | 'incidents' | 'activity' | 'locations' | 'devices' | 'admin';
+type ViewId = 'overview' | 'insights' | 'incidents' | 'activity' | 'hypervisor' | 'locations' | 'devices' | 'contracts' | 'admin';
 
 const NAV: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: Icon.overview },
   { id: 'insights', label: 'Insights', icon: Icon.insights },
   { id: 'incidents', label: 'Incidents', icon: Icon.incident },
   { id: 'activity', label: 'Activity', icon: Icon.activity },
+  { id: 'hypervisor', label: 'Hypervisor', icon: Icon.hypervisor },
   { id: 'locations', label: 'Locations', icon: Icon.building },
   { id: 'devices', label: 'Devices', icon: Icon.device },
+  { id: 'contracts', label: 'Contracts', icon: Icon.contract },
   { id: 'admin', label: 'Admin', icon: Icon.admin },
 ];
 
 export function Workspace({ signOut }: { signOut: () => void }) {
   const qc = useQueryClient();
-  const { data: org } = useOrganization();
   const { data: session } = useSession();
   const orgId = session?.orgId ?? null;
+  const { data: org } = useOrganization(!!orgId);
 
   const [view, setView] = useState<ViewId>('overview');
   const [deviceLocation, setDeviceLocation] = useState<string | null>(null);
@@ -71,8 +75,10 @@ export function Workspace({ signOut }: { signOut: () => void }) {
       {view === 'insights' && <InsightsScreen />}
       {view === 'incidents' && <IncidentsScreen />}
       {view === 'activity' && <ActivityScreen orgId={orgId} />}
+      {view === 'hypervisor' && <HypervisorScreen onOpenDevices={openDevices} />}
       {view === 'locations' && <LocationsScreen onOpenDevices={openDevices} />}
       {view === 'devices' && <DevicesScreen initialLocationId={deviceLocation} />}
+      {view === 'contracts' && <ContractsScreen />}
       {view === 'admin' && <AdminScreen />}
     </AppShell>
   );

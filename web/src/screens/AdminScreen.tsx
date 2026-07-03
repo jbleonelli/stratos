@@ -4,6 +4,9 @@ import {
   useMe,
   useOrganization,
   useOrgMembers,
+  useOrgInvites,
+  useInviteOrgMember,
+  useRevokeOrgInvite,
   useSetMemberLocationGrants,
   useUpdateMemberRole,
   useUpdateOrganization,
@@ -237,8 +240,13 @@ export function AdminScreen() {
   const updateOrg = useUpdateOrganization();
   const updateRole = useUpdateMemberRole();
   const setScope = useSetMemberLocationGrants();
+  const inviteMember = useInviteOrgMember();
+  const revokeInvite = useRevokeOrgInvite();
+  const { data: invites = [] } = useOrgInvites('pending');
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [scopeUserId, setScopeUserId] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
 
   const canAdmin = me?.orgRole === 'owner' || me?.orgRole === 'admin';
   const isOwner = me?.orgRole === 'owner';
@@ -348,6 +356,71 @@ export function AdminScreen() {
           </p>
         )}
       </Card>
+
+      {canAdmin && (
+        <Card>
+          <PanelHead
+            title="Invites"
+            right={
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Icon.mail size={15} style={{ color: 'var(--text-dim)' }} />
+                <Pill tone="neutral">{invites.length}</Pill>
+              </span>
+            }
+          />
+          <form
+            style={{ display: 'flex', gap: 8, marginBottom: 12 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!inviteEmail.trim()) return;
+              inviteMember.mutate(
+                { email: inviteEmail.trim() },
+                {
+                  onSuccess: (res) => {
+                    setInviteEmail('');
+                    setInviteToken(res.inviteToken);
+                  },
+                },
+              );
+            }}
+          >
+            <TextInput value={inviteEmail} onChange={setInviteEmail} ariaLabel="Invite email" />
+            <Button type="submit" disabled={inviteMember.isPending}>
+              {inviteMember.isPending ? '…' : 'Invite'}
+            </Button>
+          </form>
+          {inviteToken && (
+            <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-soft)', wordBreak: 'break-all' }}>
+              Invite token (share with the invitee): <code>{inviteToken}</code>
+            </p>
+          )}
+          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {invites.map((inv) => (
+              <li
+                key={inv.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                  padding: '8px 10px',
+                  background: 'var(--surface-2)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{inv.email}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{inv.orgRole}</div>
+                </div>
+                <Button variant="ghost" disabled={revokeInvite.isPending} onClick={() => revokeInvite.mutate(inv.id)}>
+                  Revoke
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </div>
   );
 }
