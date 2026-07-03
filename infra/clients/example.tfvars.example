@@ -10,3 +10,9 @@ db_deletion_protection = false
 enable_edge            = true                                       # S3+CloudFront+WAF SPA tier; false = backend only
 enable_nat             = false                                      # true to give the agent worker internet egress (AppSync push, Bedrock)
 bedrock_model_id       = "us.anthropic.claude-haiku-4-5-20251001-v1:0" # or ...claude-sonnet-4-5-20250929-v1:0 for stronger reasoning
+
+# Signal simulator — drives the agent loop with synthetic events (demos/load).
+# Off by default; ~$1-3/mo of Bedrock when on (the stack's Aurora + NAT dominate).
+enable_simulator           = false
+simulator_schedule         = "rate(5 minutes)"
+simulator_signals_per_tick = 1

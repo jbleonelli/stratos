@@ -38,6 +38,10 @@ module "lambda" {
   db_host           = module.aurora.cluster_endpoint
   db_name           = module.aurora.database_name
   bedrock_model_id  = var.bedrock_model_id
+
+  enable_simulator           = var.enable_simulator
+  simulator_schedule         = var.simulator_schedule
+  simulator_signals_per_tick = var.simulator_signals_per_tick
 }
 
 module "appsync" {

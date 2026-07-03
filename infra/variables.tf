@@ -62,3 +62,21 @@ variable "bedrock_model_id" {
   description = "Bedrock model / cross-region inference profile the agent's act path invokes. The account must have model access enabled for it. Empty → the code default in api/src/bedrock.mjs. Stronger option: us.anthropic.claude-sonnet-4-5-20250929-v1:0."
   default     = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 }
+
+variable "enable_simulator" {
+  type        = bool
+  description = "Deploy the scheduled signal simulator that drives the agent loop with synthetic events (demos/load). Off by default — costs nothing until enabled."
+  default     = false
+}
+
+variable "simulator_schedule" {
+  type        = string
+  description = "EventBridge schedule expression for the simulator tick, e.g. rate(5 minutes) or cron(...)."
+  default     = "rate(5 minutes)"
+}
+
+variable "simulator_signals_per_tick" {
+  type        = number
+  description = "Synthetic signals emitted per simulator tick. Higher → more load (and more Bedrock act calls on the ~10% critical share)."
+  default     = 1
+}

@@ -80,6 +80,7 @@ native AWS primitives so every decision is retryable, observable, and cost-gated
 | Per-agent action records | Aurora action tables |
 | LLM call | **Bedrock** invoke (a state in the machine) |
 | Spend guard | a **guard state** before the Bedrock invoke |
+| Synthetic load | **Simulator** Lambda on a scheduled rule (off by default) |
 
 ---
 
@@ -132,6 +133,25 @@ flowchart LR
 - Aurora keeps an `events` table of record for query/audit and for the UI's
   event feed, written by the resolver/consumer.
 - Idempotency via `external_id` to dedupe retry-prone sources.
+
+## Simulator (`api/src/simulator.mjs`)
+
+A scheduled Lambda that exercises the whole loop without real devices. Each tick
+it picks a real seeded device, records a synthetic `events` row, and `PutEvents`
+a signal onto the bus — the **same front door** the resolver uses on
+`ingestEvent`, so the worker path is identical to production. Severity is
+weighted (~10% `critical`, ~30% `warning`, else `info`), so the act path
+(Bedrock) fires occasionally rather than every tick.
+
+- **Off by default** (`enable_simulator = false`) → deploys nothing, costs
+  nothing.
+- Tunable via `simulator_schedule` (default `rate(5 minutes)`) and
+  `simulator_signals_per_tick` (default `1`).
+- **Cost:** the simulator itself is ~free (scheduled rule fires free, Lambda +
+  PutEvents within free tier). It adds only ~**$1–3/mo** of Bedrock on the
+  critical share; the deployed stack's Aurora (~$43/mo) and NAT (~$32/mo)
+  dominate and exist regardless. It is a SYSTEM actor (DB master, direct insert,
+  no claim bridge), reusing the shared Lambda role — no new IAM.
 
 ## Scheduling (non-agent crons)
 

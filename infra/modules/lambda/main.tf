@@ -46,6 +46,24 @@ variable "bedrock_model_id" {
   description = "Overrides the agent reasoner's Bedrock model id (BEDROCK_MODEL_ID). Empty → the code default."
 }
 
+variable "enable_simulator" {
+  type        = bool
+  default     = false
+  description = "Deploy the scheduled signal simulator that drives the agent loop with synthetic events. Off by default (no cost)."
+}
+
+variable "simulator_schedule" {
+  type        = string
+  default     = "rate(5 minutes)"
+  description = "EventBridge schedule expression for the simulator tick (rate() or cron())."
+}
+
+variable "simulator_signals_per_tick" {
+  type        = number
+  default     = 1
+  description = "Synthetic signals emitted per simulator tick."
+}
+
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
@@ -69,6 +87,11 @@ locals {
   # The resolver emits a signal onto the agent bus on ingestEvent.
   resolver_env = merge(local.db_env, {
     EVENT_BUS_NAME = local.event_bus_name
+  })
+
+  # The simulator records synthetic events and emits signals onto the same bus.
+  simulator_env = merge(local.resolver_env, {
+    SIGNALS_PER_TICK = tostring(var.simulator_signals_per_tick)
   })
 
   # The agent worker publishes activity to AppSync; it looks up the GraphQL URL
@@ -256,11 +279,76 @@ resource "aws_lambda_function" "agent_worker" {
   ]
 }
 
+# ── Signal simulator (scheduled; drives the agent loop for demos/load) ───────
+# Off by default. When enabled, a scheduled EventBridge rule ticks the simulator
+# Lambda, which records synthetic events against seeded devices and PutEvents
+# signals onto the agent bus — the same front door the resolver uses. Reuses the
+# shared role (DB secret + VPC + events:PutEvents); no Bedrock.
+
+resource "aws_cloudwatch_log_group" "simulator" {
+  count             = var.enable_simulator ? 1 : 0
+  name              = "/aws/lambda/${local.name}-simulator"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_function" "simulator" {
+  count            = var.enable_simulator ? 1 : 0
+  function_name    = "${local.name}-simulator"
+  role             = aws_iam_role.this.arn
+  runtime          = "nodejs22.x"
+  architectures    = ["arm64"]
+  handler          = "simulator.handler"
+  filename         = data.archive_file.bundle.output_path
+  source_code_hash = data.archive_file.bundle.output_base64sha256
+  timeout          = 30
+  memory_size      = 256
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = [var.security_group_id]
+  }
+
+  environment { variables = local.simulator_env }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.basic,
+    aws_iam_role_policy_attachment.vpc,
+    aws_cloudwatch_log_group.simulator,
+  ]
+}
+
+resource "aws_cloudwatch_event_rule" "simulator" {
+  count               = var.enable_simulator ? 1 : 0
+  name                = "${local.name}-simulator-tick"
+  description         = "Ticks the Stratos signal simulator."
+  schedule_expression = var.simulator_schedule
+}
+
+resource "aws_cloudwatch_event_target" "simulator" {
+  count     = var.enable_simulator ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.simulator[0].name
+  target_id = "simulator"
+  arn       = aws_lambda_function.simulator[0].arn
+}
+
+resource "aws_lambda_permission" "simulator" {
+  count         = var.enable_simulator ? 1 : 0
+  statement_id  = "AllowEventBridgeInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.simulator[0].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.simulator[0].arn
+}
+
 output "resolver_arn" { value = aws_lambda_function.resolver.arn }
 output "resolver_name" { value = aws_lambda_function.resolver.function_name }
 output "migrate_name" { value = aws_lambda_function.migrate.function_name }
 output "agent_worker_arn" { value = aws_lambda_function.agent_worker.arn }
 output "agent_worker_name" { value = aws_lambda_function.agent_worker.function_name }
+output "simulator_name" {
+  description = "Simulator function name when enabled, else empty."
+  value       = var.enable_simulator ? aws_lambda_function.simulator[0].function_name : ""
+}
 output "role_name" {
   description = "Shared Lambda execution role — the eventbridge module attaches the SQS receive policy to it."
   value       = aws_iam_role.this.name

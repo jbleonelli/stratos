@@ -12,6 +12,7 @@ await esbuild.build({
     'src/pre-token.mjs',
     'src/migrate.mjs',
     'src/agent-worker.mjs',
+    'src/simulator.mjs',
   ],
   outdir: 'dist',
   bundle: true,
