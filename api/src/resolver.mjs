@@ -29,6 +29,7 @@ import {
   toServiceContract,
   serviceContractById,
   serviceContractsAll,
+  toWorkOrder,
 } from './mappers.mjs';
 import { inviteCognitoUser } from './cognito-admin.mjs';
 import { defaultEmitter, signalFromEvent } from './event-emitter.mjs';
@@ -127,6 +128,16 @@ async function run(field, c, args, _claims) {
         contracts.push(toServiceContract(row, sla.rows));
       }
       return contracts;
+    }
+
+    case 'Query.workOrders': {
+      const res = await c.query(
+        `select * from public.work_orders
+          where ($1::public.work_order_status is null or status = $1::public.work_order_status)
+          order by created_at desc`,
+        [args?.status ?? null],
+      );
+      return res.rows.map(toWorkOrder);
     }
 
     case 'Query.locations': {
@@ -247,6 +258,24 @@ async function run(field, c, args, _claims) {
     case 'Mutation.assignContractMember': {
       await c.query('select public.assign_contract_member($1, $2)', [args.contractId, args.userId]);
       return fetchServiceContract(c, args.contractId);
+    }
+
+    case 'Mutation.createWorkOrder': {
+      const id = one(
+        await c.query('select public.create_work_order($1, $2, $3, $4, $5) as id', [
+          input.title,
+          input.description ?? null,
+          input.locationId ?? null,
+          input.deviceId ?? null,
+          input.contractId ?? null,
+        ]),
+      ).id;
+      return toWorkOrder(one(await c.query('select * from public.work_orders where id = $1', [id])));
+    }
+
+    case 'Mutation.completeWorkOrder': {
+      await c.query('select public.complete_work_order($1, $2)', [input.workOrderId, input.photoUrl ?? null]);
+      return toWorkOrder(one(await c.query('select * from public.work_orders where id = $1', [input.workOrderId])));
     }
 
     case 'Mutation.updateOrganization': {

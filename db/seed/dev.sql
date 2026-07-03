@@ -71,3 +71,16 @@ insert into public.contract_sla_rules (contract_id, severity, response_minutes) 
 
 insert into public.contract_assignments (contract_id, user_id) values
   ('5c000a01-0000-0000-0000-000000000001', '05e00c01-0000-0000-0000-000000000001');
+
+-- Floor plans + device placement (hypervisor v2)
+update public.locations
+   set floor_plan_url = '/floor-plans/alpha-tower.svg', floor_elevation = 0
+ where id = '10c0a001-0000-0000-0000-000000000001';
+
+update public.devices
+   set position_x = 0.7, position_y = 0.35
+ where id = 'de000a01-0000-0000-0000-000000000001';
+
+-- Open work order for parity E2E worker path
+insert into public.work_orders (id, organization_id, location_id, device_id, contract_id, title, description, status, created_by) values
+  ('a9000a01-0000-0000-0000-000000000001', '0a1a0a1a-0000-0000-0000-000000000001', '10c0a001-0000-0000-0000-000000000001', 'de000a01-0000-0000-0000-000000000001', '5c000a01-0000-0000-0000-000000000001', 'Inspect warm zone sensor', 'Alpha Tower thermostat reading elevated — verify HVAC response.', 'open', '05e00c01-0000-0000-0000-000000000001');

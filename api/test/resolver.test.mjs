@@ -16,7 +16,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { createResolver } from '../src/resolver.mjs';
 import { loadTestSchema } from './load-test-schema.mjs';
 import { ForbiddenError, UnauthenticatedError } from '../src/authz.mjs';
-import { ORG, USER, ASK, LOC, CONTRACT } from '../../db/proof/fixtures.mjs';
+import { ORG, USER, ASK, LOC, CONTRACT, WORK_ORDER } from '../../db/proof/fixtures.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const db = join(here, '..', '..', 'db');
@@ -409,6 +409,54 @@ test('Query.locations includes geo coordinates', async () => {
   const tower = locs.find((l) => l.name === 'Alpha Tower');
   assert.equal(tower?.latitude, 48.8566);
   assert.equal(tower?.longitude, 2.3522);
+});
+
+test('Query.locations includes floor plan metadata', async () => {
+  const locs = await handler(ev('Query', 'locations', {}, AS.alphaAdmin));
+  const tower = locs.find((l) => l.name === 'Alpha Tower');
+  assert.equal(tower?.floorPlanUrl, '/floor-plans/alpha-tower.svg');
+  assert.equal(tower?.floorElevation, 0);
+});
+
+test('Query.devices includes placement coordinates', async () => {
+  const devices = await handler(ev('Query', 'devices', {}, AS.alphaAdmin));
+  const thermostat = devices.find((d) => d.name === 'Alpha Tower Thermostat');
+  assert.equal(thermostat?.positionX, 0.7);
+  assert.equal(thermostat?.positionY, 0.35);
+});
+
+// ─────────────────────────── Work orders ───────────────────────────────────
+
+test('Query.workOrders lists open tickets for customer org', async () => {
+  const orders = await handler(ev('Query', 'workOrders', {}, AS.alphaAdmin));
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0].id, WORK_ORDER.alphaInspect);
+  assert.equal(orders[0].status, 'open');
+  assert.equal(orders[0].title, 'Inspect warm zone sensor');
+});
+
+test('Query.workOrders lists contracted work for assignee contractor', async () => {
+  const orders = await handler(ev('Query', 'workOrders', {}, AS.swiftTech));
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0].locationId, LOC.alphaTower);
+});
+
+test('Mutation.createWorkOrder creates a ticket', async () => {
+  const wo = await handler(
+    ev('Mutation', 'createWorkOrder', { input: { title: 'Replace filter', locationId: LOC.alphaTower } }, AS.alphaAdmin),
+  );
+  assert.equal(wo.title, 'Replace filter');
+  assert.equal(wo.status, 'open');
+  assert.equal(wo.locationId, LOC.alphaTower);
+});
+
+test('Mutation.completeWorkOrder closes ticket for contractor assignee', async () => {
+  const wo = await handler(
+    ev('Mutation', 'completeWorkOrder', { input: { workOrderId: WORK_ORDER.alphaInspect, photoUrl: 'https://example.com/done.jpg' } }, AS.swiftTech),
+  );
+  assert.equal(wo.status, 'done');
+  assert.equal(wo.photoUrl, 'https://example.com/done.jpg');
+  assert.ok(wo.completedAt);
 });
 
 // ─────────────────────────── App-layer authz ───────────────────────────────

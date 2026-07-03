@@ -3,8 +3,9 @@ import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import { useDevices, useIncidents, useLocations } from '../queries/useData';
 import type { Device, Location } from '../api/types';
 import { Card, DataError, Dot, PanelHead, Pill } from '../ui/primitives';
+import { HypervisorFloor3D } from './HypervisorFloor3D';
 
-type Tab = 'schematic' | 'map';
+type Tab = 'schematic' | 'map' | 'plan' | '3d';
 
 const deviceTone = (status: Device['status']) =>
   status === 'online' ? 'ok' : status === 'maintenance' ? 'warn' : 'risk';
@@ -80,6 +81,59 @@ function SchematicView({
   );
 }
 
+function PlanView({
+  location,
+  devices,
+}: {
+  location: Location;
+  devices: Device[];
+}) {
+  const locDevices = devices.filter((d) => d.locationId === location.id);
+  if (!location.floorPlanUrl) {
+    return <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: 20 }}>No floor plan for this location.</div>;
+  }
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        height: 420,
+        borderRadius: 'var(--radius-sm)',
+        overflow: 'hidden',
+        border: '1px solid var(--border)',
+        background: 'var(--surface-2)',
+      }}
+    >
+      <img
+        src={location.floorPlanUrl}
+        alt={`${location.name} floor plan`}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+      />
+      {locDevices.map((d) => {
+        if (d.positionX == null || d.positionY == null) return null;
+        return (
+          <span
+            key={d.id}
+            title={d.name}
+            style={{
+              position: 'absolute',
+              left: `${d.positionX * 100}%`,
+              top: `${d.positionY * 100}%`,
+              transform: 'translate(-50%, -50%)',
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: d.status === 'online' ? 'var(--accent)' : d.status === 'maintenance' ? 'var(--warn)' : 'var(--text-faint)',
+              border: '2px solid var(--surface)',
+              boxShadow: '0 0 0 1px var(--border)',
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function MapView({
   locations,
   incidents,
@@ -133,6 +187,9 @@ export function HypervisorScreen({ onOpenDevices }: { onOpenDevices: (locationId
   const [tab, setTab] = useState<Tab>('schematic');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const tabs: Tab[] = ['schematic', 'map', 'plan', '3d'];
+  const tabLabel = (t: Tab) => (t === '3d' ? '3D' : t);
+
   const selected = useMemo(
     () => locations.find((l) => l.id === selectedId) ?? null,
     [locations, selectedId],
@@ -156,8 +213,8 @@ export function HypervisorScreen({ onOpenDevices }: { onOpenDevices: (locationId
         <PanelHead
           title="Hypervisor"
           right={
-            <span style={{ display: 'inline-flex', gap: 6 }}>
-              {(['schematic', 'map'] as Tab[]).map((t) => (
+            <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+              {tabs.map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -175,7 +232,7 @@ export function HypervisorScreen({ onOpenDevices }: { onOpenDevices: (locationId
                     textTransform: 'capitalize',
                   }}
                 >
-                  {t}
+                  {tabLabel(t)}
                 </button>
               ))}
             </span>
@@ -191,13 +248,25 @@ export function HypervisorScreen({ onOpenDevices }: { onOpenDevices: (locationId
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
-        ) : (
+        ) : tab === 'map' ? (
           <MapView
             locations={locations}
             incidents={incidents}
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
+        ) : tab === 'plan' ? (
+          selected?.floorPlanUrl ? (
+            <PlanView location={selected} devices={devices} />
+          ) : (
+            <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: 20 }}>
+              {selected ? 'No floor plan for this location.' : 'Select a location to view its floor plan.'}
+            </div>
+          )
+        ) : selected ? (
+          <HypervisorFloor3D devices={selectedDevices} elevation={selected.floorElevation ?? 0} />
+        ) : (
+          <div style={{ color: 'var(--text-faint)', fontSize: 13, padding: 20 }}>Select a location for the 3D view.</div>
         )}
       </Card>
 

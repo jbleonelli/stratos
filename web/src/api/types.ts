@@ -6,6 +6,7 @@ export type AskStatus = 'open' | 'answered' | 'dismissed' | 'expired';
 export type OrgKind = 'customer' | 'platform' | 'contractor';
 export type InviteStatus = 'pending' | 'accepted' | 'revoked' | 'expired';
 export type ContractStatus = 'draft' | 'active' | 'suspended' | 'ended';
+export type WorkOrderStatus = 'open' | 'in_progress' | 'done' | 'cancelled';
 export type OrgLifecycle = 'trial' | 'active' | 'suspended' | 'deleted';
 export type OrgRole = 'owner' | 'admin' | 'member';
 export type LocationKind = 'building' | 'floor' | 'zone' | 'room';
@@ -76,6 +77,8 @@ export interface Location {
   deviceCount: number;
   latitude: number | null;
   longitude: number | null;
+  floorPlanUrl: string | null;
+  floorElevation: number | null;
   createdAt: string;
 }
 
@@ -87,6 +90,8 @@ export interface Device {
   kind: string;
   status: DeviceStatus;
   externalId: string | null;
+  positionX: number | null;
+  positionY: number | null;
   createdAt: string;
 }
 
@@ -227,4 +232,33 @@ export interface CreateServiceContractInput {
   referenceCode?: string | null;
   locationIds: string[];
   slaRules?: SlaRuleInput[];
+}
+
+export interface WorkOrder {
+  id: string;
+  organizationId: string;
+  locationId: string | null;
+  deviceId: string | null;
+  contractId: string | null;
+  title: string;
+  description: string | null;
+  status: WorkOrderStatus;
+  photoUrl: string | null;
+  createdBy: string | null;
+  assignedTo: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface CreateWorkOrderInput {
+  title: string;
+  description?: string | null;
+  locationId?: string | null;
+  deviceId?: string | null;
+  contractId?: string | null;
+}
+
+export interface CompleteWorkOrderInput {
+  workOrderId: string;
+  photoUrl?: string | null;
 }

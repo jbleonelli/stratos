@@ -15,8 +15,9 @@ import { InsightsScreen } from '../screens/InsightsScreen';
 import { AdminScreen } from '../screens/AdminScreen';
 import { HypervisorScreen } from '../screens/HypervisorScreen';
 import { ContractsScreen } from '../screens/ContractsScreen';
+import { WorkOrdersScreen } from '../screens/WorkOrdersScreen';
 
-type ViewId = 'overview' | 'insights' | 'incidents' | 'activity' | 'hypervisor' | 'locations' | 'devices' | 'contracts' | 'admin';
+type ViewId = 'overview' | 'insights' | 'incidents' | 'activity' | 'hypervisor' | 'locations' | 'devices' | 'contracts' | 'workOrders' | 'admin';
 
 const NAV: NavItem[] = [
   { id: 'overview', label: 'Overview', icon: Icon.overview },
@@ -26,6 +27,7 @@ const NAV: NavItem[] = [
   { id: 'hypervisor', label: 'Hypervisor', icon: Icon.hypervisor },
   { id: 'locations', label: 'Locations', icon: Icon.building },
   { id: 'devices', label: 'Devices', icon: Icon.device },
+  { id: 'workOrders', label: 'Work orders', icon: Icon.workOrder },
   { id: 'contracts', label: 'Contracts', icon: Icon.contract },
   { id: 'admin', label: 'Admin', icon: Icon.admin },
 ];
@@ -78,6 +80,7 @@ export function Workspace({ signOut }: { signOut: () => void }) {
       {view === 'hypervisor' && <HypervisorScreen onOpenDevices={openDevices} />}
       {view === 'locations' && <LocationsScreen onOpenDevices={openDevices} />}
       {view === 'devices' && <DevicesScreen initialLocationId={deviceLocation} />}
+      {view === 'workOrders' && <WorkOrdersScreen />}
       {view === 'contracts' && <ContractsScreen />}
       {view === 'admin' && <AdminScreen />}
     </AppShell>

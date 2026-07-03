@@ -30,6 +30,10 @@ import type {
   ServiceContract,
   ContractStatus,
   CreateServiceContractInput,
+  WorkOrder,
+  WorkOrderStatus,
+  CreateWorkOrderInput,
+  CompleteWorkOrderInput,
 } from '../api/types';
 
 export function useMe() {
@@ -255,5 +259,31 @@ export function useUpdateContractStatus() {
       (await gql<{ updateContractStatus: ServiceContract }>(docs.UPDATE_CONTRACT_STATUS, { id, status }))
         .updateContractStatus,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['serviceContracts'] }),
+  });
+}
+
+export function useWorkOrders(status?: WorkOrderStatus) {
+  return useQuery({
+    queryKey: ['workOrders', status ?? 'all'],
+    queryFn: async () =>
+      (await gql<{ workOrders: WorkOrder[] }>(docs.WORK_ORDERS, { status: status ?? null })).workOrders,
+  });
+}
+
+export function useCreateWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateWorkOrderInput) =>
+      (await gql<{ createWorkOrder: WorkOrder }>(docs.CREATE_WORK_ORDER, { input })).createWorkOrder,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrders'] }),
+  });
+}
+
+export function useCompleteWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CompleteWorkOrderInput) =>
+      (await gql<{ completeWorkOrder: WorkOrder }>(docs.COMPLETE_WORK_ORDER, { input })).completeWorkOrder,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['workOrders'] }),
   });
 }

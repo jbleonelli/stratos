@@ -14,5 +14,7 @@ export async function loadTestSchema(pg, dbRoot) {
   await pg.exec(await sql('migrations/006_contracts.sql'));
   await pg.exec(await sql('migrations/007_location_geo.sql'));
   await pg.exec(await sql('migrations/008_bootstrap_signup.sql'));
+  await pg.exec(await sql('migrations/009_work_orders.sql'));
+  await pg.exec(await sql('migrations/010_floor_plans.sql'));
   await pg.exec(await sql('seed/dev.sql'));
 }

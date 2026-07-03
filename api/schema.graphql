@@ -16,6 +16,7 @@ enum AskStatus { open answered dismissed expired }
 enum OrgKind { customer platform contractor }
 enum InviteStatus { pending accepted revoked expired }
 enum ContractStatus { draft active suspended ended }
+enum WorkOrderStatus { open in_progress done cancelled }
 enum OrgLifecycle { trial active suspended deleted }
 enum OrgRole { owner admin member }
 enum LocationKind { building floor zone room }
@@ -58,6 +59,8 @@ type Location {
   deviceCount: Int!
   latitude: Float
   longitude: Float
+  floorPlanUrl: String
+  floorElevation: Float
   createdAt: AWSDateTime!
 }
 
@@ -69,6 +72,8 @@ type Device {
   kind: String!
   status: DeviceStatus!
   externalId: String
+  positionX: Float
+  positionY: Float
   createdAt: AWSDateTime!
 }
 
@@ -253,6 +258,35 @@ input CreateServiceContractInput {
   slaRules: [SlaRuleInput!]
 }
 
+type WorkOrder {
+  id: ID!
+  organizationId: ID!
+  locationId: ID
+  deviceId: ID
+  contractId: ID
+  title: String!
+  description: String
+  status: WorkOrderStatus!
+  photoUrl: String
+  createdBy: ID
+  assignedTo: ID
+  createdAt: AWSDateTime!
+  completedAt: AWSDateTime
+}
+
+input CreateWorkOrderInput {
+  title: String!
+  description: String
+  locationId: ID
+  deviceId: ID
+  contractId: ID
+}
+
+input CompleteWorkOrderInput {
+  workOrderId: ID!
+  photoUrl: String
+}
+
 type Query {
   me: Me
   organization: Organization
@@ -261,6 +295,7 @@ type Query {
   myPendingInvites: [OrgInvite!]!
   contractorOrganizations: [Organization!]!
   serviceContracts(status: ContractStatus): [ServiceContract!]!
+  workOrders(status: WorkOrderStatus): [WorkOrder!]!
   locations: [Location!]!
   devices(locationId: ID, limit: Int = 200): [Device!]!
   events(limit: Int = 50): [Event!]!
@@ -280,6 +315,8 @@ type Mutation {
   createServiceContract(input: CreateServiceContractInput!): ServiceContract!
   updateContractStatus(id: ID!, status: ContractStatus!): ServiceContract!
   assignContractMember(contractId: ID!, userId: ID!): ServiceContract!
+  createWorkOrder(input: CreateWorkOrderInput!): WorkOrder!
+  completeWorkOrder(input: CompleteWorkOrderInput!): WorkOrder!
   updateOrganization(input: UpdateOrganizationInput!): Organization!
   updateMemberRole(input: UpdateMemberRoleInput!): OrgMember!
   setMemberLocationGrants(input: SetMemberLocationGrantsInput!): OrgMember!

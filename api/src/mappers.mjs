@@ -83,6 +83,8 @@ export const toLocation = (r) =>
     deviceCount: Number(r.device_count ?? 0),
     latitude: r.latitude == null ? null : Number(r.latitude),
     longitude: r.longitude == null ? null : Number(r.longitude),
+    floorPlanUrl: r.floor_plan_url,
+    floorElevation: r.floor_elevation == null ? null : Number(r.floor_elevation),
     createdAt: iso(r.created_at),
   };
 
@@ -95,6 +97,8 @@ export const toDevice = (r) =>
     kind: r.kind,
     status: r.status,
     externalId: r.external_id,
+    positionX: r.position_x == null ? null : Number(r.position_x),
+    positionY: r.position_y == null ? null : Number(r.position_y),
     createdAt: iso(r.created_at),
   };
 
@@ -248,3 +252,20 @@ export const serviceContractsAll = (status) =>
        )
      )
    order by sc.created_at desc`;
+
+export const toWorkOrder = (r) =>
+  r && {
+    id: r.id,
+    organizationId: r.organization_id,
+    locationId: r.location_id,
+    deviceId: r.device_id,
+    contractId: r.contract_id,
+    title: r.title,
+    description: r.description,
+    status: r.status,
+    photoUrl: r.photo_url,
+    createdBy: r.created_by,
+    assignedTo: r.assigned_to,
+    createdAt: iso(r.created_at),
+    completedAt: iso(r.completed_at),
+  };

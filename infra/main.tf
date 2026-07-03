@@ -42,6 +42,9 @@ module "lambda" {
   enable_simulator           = var.enable_simulator
   simulator_schedule         = var.simulator_schedule
   simulator_signals_per_tick = var.simulator_signals_per_tick
+
+  cognito_user_pool_id  = module.cognito.user_pool_id
+  cognito_user_pool_arn = module.cognito.user_pool_arn
 }
 
 module "appsync" {

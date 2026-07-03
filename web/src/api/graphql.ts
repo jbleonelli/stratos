@@ -121,7 +121,7 @@ export const ORGANIZATION = /* GraphQL */ `
 export const LOCATIONS = /* GraphQL */ `
   query Locations {
     locations {
-      id organizationId parentId name kind deviceCount latitude longitude createdAt
+      id organizationId parentId name kind deviceCount latitude longitude floorPlanUrl floorElevation createdAt
     }
   }
 `;
@@ -129,7 +129,32 @@ export const LOCATIONS = /* GraphQL */ `
 export const DEVICES = /* GraphQL */ `
   query Devices($locationId: ID, $limit: Int) {
     devices(locationId: $locationId, limit: $limit) {
-      id organizationId locationId name kind status externalId createdAt
+      id organizationId locationId name kind status externalId positionX positionY createdAt
+    }
+  }
+`;
+
+export const WORK_ORDERS = /* GraphQL */ `
+  query WorkOrders($status: WorkOrderStatus) {
+    workOrders(status: $status) {
+      id organizationId locationId deviceId contractId title description status photoUrl
+      createdBy assignedTo createdAt completedAt
+    }
+  }
+`;
+
+export const CREATE_WORK_ORDER = /* GraphQL */ `
+  mutation CreateWorkOrder($input: CreateWorkOrderInput!) {
+    createWorkOrder(input: $input) {
+      id title description status locationId deviceId contractId createdAt
+    }
+  }
+`;
+
+export const COMPLETE_WORK_ORDER = /* GraphQL */ `
+  mutation CompleteWorkOrder($input: CompleteWorkOrderInput!) {
+    completeWorkOrder(input: $input) {
+      id status photoUrl completedAt
     }
   }
 `;

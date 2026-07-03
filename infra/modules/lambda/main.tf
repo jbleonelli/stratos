@@ -64,6 +64,18 @@ variable "simulator_signals_per_tick" {
   description = "Synthetic signals emitted per simulator tick."
 }
 
+variable "cognito_user_pool_id" {
+  type        = string
+  default     = ""
+  description = "Cognito user pool id — enables inviteOrgMember to AdminCreateUser when set."
+}
+
+variable "cognito_user_pool_arn" {
+  type        = string
+  default     = ""
+  description = "Cognito user pool ARN for resolver IAM (AdminCreateUser / AdminGetUser)."
+}
+
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
@@ -87,7 +99,7 @@ locals {
   # The resolver emits a signal onto the agent bus on ingestEvent.
   resolver_env = merge(local.db_env, {
     EVENT_BUS_NAME = local.event_bus_name
-  })
+  }, var.cognito_user_pool_id != "" ? { COGNITO_USER_POOL_ID = var.cognito_user_pool_id } : {})
 
   # The simulator records synthetic events and emits signals onto the same bus.
   simulator_env = merge(local.resolver_env, {
@@ -177,6 +189,26 @@ resource "aws_iam_role_policy" "put_events" {
   name   = "emit-agent-signals"
   role   = aws_iam_role.this.id
   policy = data.aws_iam_policy_document.put_events.json
+}
+
+# inviteOrgMember → Cognito AdminCreateUser when COGNITO_USER_POOL_ID is set.
+data "aws_iam_policy_document" "cognito_admin" {
+  count = var.cognito_user_pool_arn != "" ? 1 : 0
+
+  statement {
+    actions = [
+      "cognito-idp:AdminCreateUser",
+      "cognito-idp:AdminGetUser",
+    ]
+    resources = [var.cognito_user_pool_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "cognito_admin" {
+  count  = var.cognito_user_pool_arn != "" ? 1 : 0
+  name   = "cognito-admin-invites"
+  role   = aws_iam_role.this.id
+  policy = data.aws_iam_policy_document.cognito_admin[0].json
 }
 
 # ── Resolver function (invoked by AppSync) ──────────────────────────────────

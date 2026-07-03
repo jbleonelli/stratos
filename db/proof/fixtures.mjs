@@ -43,6 +43,10 @@ export const CONTRACT = {
   alphaHvac: '5c000a01-0000-0000-0000-000000000001',
 };
 
+export const WORK_ORDER = {
+  alphaInspect: 'a9000a01-0000-0000-0000-000000000001',
+};
+
 // Cognito-style claim sets, as the pre-token-generation Lambda would emit them.
 export const AS = {
   alphaAdmin: { sub: USER.alphaAdmin, organization_id: ORG.alpha },

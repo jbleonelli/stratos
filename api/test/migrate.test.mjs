@@ -33,6 +33,8 @@ before(async () => {
     { version: '006_contracts', sql: await readFile(join(db, 'migrations', '006_contracts.sql'), 'utf8') },
     { version: '007_location_geo', sql: await readFile(join(db, 'migrations', '007_location_geo.sql'), 'utf8') },
     { version: '008_bootstrap_signup', sql: await readFile(join(db, 'migrations', '008_bootstrap_signup.sql'), 'utf8') },
+    { version: '009_work_orders', sql: await readFile(join(db, 'migrations', '009_work_orders.sql'), 'utf8') },
+    { version: '010_floor_plans', sql: await readFile(join(db, 'migrations', '010_floor_plans.sql'), 'utf8') },
     { version: 'dev_seed', sql: await readFile(join(db, 'seed', 'dev.sql'), 'utf8'), seed: true },
   ];
 });
@@ -43,7 +45,7 @@ after(async () => {
 
 test('applies core slices but skips the seed by default', async () => {
   const { applied } = await runMigrations(pg, migrations);
-  assert.deepEqual(applied, ['001_authz', 'V1_baseline', '002_agent_runtime', '003_admin', '004_location_grants_admin', '005_invites', '006a_contractor_kind', '006_contracts', '007_location_geo', '008_bootstrap_signup']);
+  assert.deepEqual(applied, ['001_authz', 'V1_baseline', '002_agent_runtime', '003_admin', '004_location_grants_admin', '005_invites', '006a_contractor_kind', '006_contracts', '007_location_geo', '008_bootstrap_signup', '009_work_orders', '010_floor_plans']);
 
   const { rows } = await pg.query('select count(*)::int as n from public.organizations');
   assert.equal(rows[0].n, 0); // seed not applied
