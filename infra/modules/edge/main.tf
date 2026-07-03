@@ -36,6 +36,9 @@ data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "spa" {
   bucket = "${local.name}-spa-${data.aws_caller_identity.current.account_id}"
+  # The SPA bundle is published into this bucket by CI; allow destroy to empty it
+  # so teardown doesn't fail on a non-empty bucket.
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_public_access_block" "spa" {
