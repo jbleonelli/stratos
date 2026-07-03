@@ -23,6 +23,7 @@ import invites from '../../db/migrations/005_invites.sql';
 import contractsKind from '../../db/migrations/006a_contractor_kind.sql';
 import contracts from '../../db/migrations/006_contracts.sql';
 import locationGeo from '../../db/migrations/007_location_geo.sql';
+import bootstrapSignup from '../../db/migrations/008_bootstrap_signup.sql';
 import seed from '../../db/seed/dev.sql';
 import process from 'node:process';
 import { runMigrations } from './migrate-core.mjs';
@@ -38,6 +39,7 @@ const MIGRATIONS = [
   { version: '006a_contractor_kind', sql: contractsKind },
   { version: '006_contracts', sql: contracts },
   { version: '007_location_geo', sql: locationGeo },
+  { version: '008_bootstrap_signup', sql: bootstrapSignup },
   { version: 'dev_seed', sql: seed, seed: true },
 ];
 

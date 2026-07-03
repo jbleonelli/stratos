@@ -10,6 +10,7 @@ await esbuild.build({
   entryPoints: [
     'src/resolver.mjs',
     'src/pre-token.mjs',
+    'src/post-confirmation.mjs',
     'src/migrate.mjs',
     'src/agent-worker.mjs',
     'src/simulator.mjs',

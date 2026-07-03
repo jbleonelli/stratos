@@ -129,10 +129,55 @@ resource "aws_lambda_function" "pre_token" {
   ]
 }
 
-resource "aws_lambda_permission" "cognito" {
-  statement_id  = "AllowCognitoInvoke"
+resource "aws_lambda_permission" "cognito_pre_token" {
+  statement_id  = "AllowCognitoPreToken"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.pre_token.function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.this.arn
+}
+
+resource "aws_lambda_function" "post_confirmation" {
+  function_name    = "${local.name}-post-confirmation"
+  role             = aws_iam_role.pre_token.arn
+  runtime          = "nodejs22.x"
+  architectures    = ["arm64"]
+  handler          = "post-confirmation.handler"
+  filename         = data.archive_file.pre_token.output_path
+  source_code_hash = data.archive_file.pre_token.output_base64sha256
+  timeout          = 10
+  memory_size      = 256
+
+  vpc_config {
+    subnet_ids         = var.subnet_ids
+    security_group_ids = [var.security_group_id]
+  }
+
+  environment {
+    variables = {
+      DB_SECRET_ARN = var.db_secret_arn
+      DB_HOST       = var.db_host
+      DB_NAME       = var.db_name
+      DB_PORT       = tostring(var.db_port)
+    }
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.basic,
+    aws_iam_role_policy_attachment.vpc,
+    aws_cloudwatch_log_group.post_confirmation,
+  ]
+}
+
+resource "aws_cloudwatch_log_group" "post_confirmation" {
+  name              = "/aws/lambda/${local.name}-post-confirmation"
+  retention_in_days = var.log_retention_days
+}
+
+resource "aws_lambda_permission" "cognito_post_confirmation" {
+  statement_id  = "AllowCognitoPostConfirmation"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.post_confirmation.function_name
   principal     = "cognito-idp.amazonaws.com"
   source_arn    = aws_cognito_user_pool.this.arn
 }
@@ -191,6 +236,7 @@ resource "aws_cognito_user_pool" "this" {
 
   lambda_config {
     pre_token_generation = aws_lambda_function.pre_token.arn
+    post_confirmation    = aws_lambda_function.post_confirmation.arn
   }
 }
 
@@ -221,3 +267,5 @@ output "user_pool_arn" { value = aws_cognito_user_pool.this.arn }
 output "user_pool_client_id" { value = aws_cognito_user_pool_client.spa.id }
 output "pre_token_lambda_arn" { value = aws_lambda_function.pre_token.arn }
 output "pre_token_lambda_name" { value = aws_lambda_function.pre_token.function_name }
+output "post_confirmation_lambda_arn" { value = aws_lambda_function.post_confirmation.arn }
+output "post_confirmation_lambda_name" { value = aws_lambda_function.post_confirmation.function_name }
