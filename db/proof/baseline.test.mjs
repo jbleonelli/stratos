@@ -10,10 +10,10 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { loadTestSchema } from '../../api/test/load-test-schema.mjs';
 import { withClaims } from './claim-bridge.mjs';
 import { AS, ORG, DEVICE, ASK } from './fixtures.mjs';
 
@@ -24,9 +24,7 @@ let db;
 
 before(async () => {
   db = new PGlite();
-  await db.exec(await readFile(join(repoDb, 'helpers', '001_authz.sql'), 'utf8'));
-  await db.exec(await readFile(join(repoDb, 'V1_baseline.sql'), 'utf8'));
-  await db.exec(await readFile(join(repoDb, 'seed', 'dev.sql'), 'utf8'));
+  await loadTestSchema(db, repoDb);
 });
 
 after(async () => {
@@ -40,8 +38,8 @@ const rows = (claims, sql, params = []) =>
 
 test('caller reads only their org events', async () => {
   const r = await rows(AS.alphaAdmin, 'select organization_id from public.events');
-  assert.equal(r.length, 1);
-  assert.equal(r[0].organization_id, ORG.alpha);
+  assert.equal(r.length, 2);
+  assert.ok(r.every((row) => row.organization_id === ORG.alpha));
 });
 
 test('location-scoped user reads only granted-location devices', async () => {
@@ -58,7 +56,7 @@ test('beta admin reads only beta asks', async () => {
 
 test('platform admin reads events across all tenants', async () => {
   const r = await rows(AS.platform, 'select organization_id from public.events');
-  assert.equal(r.length, 2);
+  assert.equal(r.length, 3);
 });
 
 test('missing token reads nothing', async () => {
