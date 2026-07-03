@@ -29,6 +29,14 @@ on:
         description: "Deploy the CloudFront/WAF/SPA edge tier."
         type: boolean
         default: false
+      enable_nat:
+        description: "NAT egress for private subnets (agent worker AppSync push, Bedrock)."
+        type: boolean
+        default: false
+      enable_simulator:
+        description: "Scheduled signal simulator that drives the agent loop."
+        type: boolean
+        default: false
 
 permissions:
   id-token: write # required for OIDC
@@ -69,7 +77,9 @@ jobs:
         run: |
           terraform plan -input=false -out=tf.plan \
             -var "environment=${{ inputs.environment }}" \
-            -var "enable_edge=${{ inputs.enable_edge }}"
+            -var "enable_edge=${{ inputs.enable_edge }}" \
+            -var "enable_nat=${{ inputs.enable_nat }}" \
+            -var "enable_simulator=${{ inputs.enable_simulator }}"
 
       - name: Apply
         if: ${{ inputs.action == 'apply' }}
