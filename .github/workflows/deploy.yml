@@ -91,6 +91,10 @@ jobs:
         working-directory: infra
         run: terraform apply -input=false tf.plan
 
+      - name: Wait for IAM propagation
+        if: ${{ inputs.action == 'apply' && inputs.seed_demo_users }}
+        run: sleep 15
+
       - name: Migrate DB and seed demo Cognito users
         if: ${{ inputs.action == 'apply' && inputs.seed_demo_users }}
         working-directory: infra
@@ -101,10 +105,11 @@ jobs:
             --function-name "$FN" \
             --payload '{"applySeed":true,"seedDemoUsersAfterSeed":true}' \
             --cli-binary-format raw-in-base64-out \
-            /tmp/migrate-out.json
-          cat /tmp/migrate-out.json
-          if grep -q FunctionError /tmp/migrate-out.json 2>/dev/null; then
+            /tmp/migrate-body.json > /tmp/migrate-meta.json
+          cat /tmp/migrate-body.json
+          if jq -e '.errorType' /tmp/migrate-body.json >/dev/null 2>&1; then
             echo "Migrate/seed Lambda failed" >&2
+            cat /tmp/migrate-meta.json >&2
             exit 1
           fi
           echo ""

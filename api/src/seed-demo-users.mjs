@@ -30,7 +30,7 @@ async function cognitoClient() {
     AdminCreateUserCommand,
     AdminGetUserCommand,
     AdminSetUserPasswordCommand,
-    AdminUpdateUserAttributesCommand,
+    AdminDeleteUserCommand,
   } = await import('@aws-sdk/client-cognito-identity-provider');
 
   return {
@@ -39,7 +39,7 @@ async function cognitoClient() {
     AdminCreateUserCommand,
     AdminGetUserCommand,
     AdminSetUserPasswordCommand,
-    AdminUpdateUserAttributesCommand,
+    AdminDeleteUserCommand,
   };
 }
 
@@ -56,15 +56,19 @@ export async function ensureCognitoDemoUser(persona, password = DEMO_PASSWORD) {
     AdminCreateUserCommand,
     AdminGetUserCommand,
     AdminSetUserPasswordCommand,
-    AdminUpdateUserAttributesCommand,
+    AdminDeleteUserCommand,
   } = await cognitoClient();
 
-  let user;
-  let created = false;
-
   try {
-    user = await client.send(
+    await client.send(
       new AdminGetUserCommand({
+        UserPoolId: poolId,
+        Username: persona.email,
+      }),
+    );
+    // Drop partial users from a prior failed seed so we recreate cleanly.
+    await client.send(
+      new AdminDeleteUserCommand({
         UserPoolId: poolId,
         Username: persona.email,
       }),
@@ -73,39 +77,19 @@ export async function ensureCognitoDemoUser(persona, password = DEMO_PASSWORD) {
     if (err?.name !== 'UserNotFoundException') throw err;
   }
 
-  if (!user) {
-    await client.send(
-      new AdminCreateUserCommand({
-        UserPoolId: poolId,
-        Username: persona.email,
-        MessageAction: 'SUPPRESS',
-        TemporaryPassword: password,
-        UserAttributes: [
-          { Name: 'email', Value: persona.email },
-          { Name: 'email_verified', Value: 'true' },
-          { Name: 'name', Value: persona.fullName },
-        ],
-      }),
-    );
-    created = true;
-    user = await client.send(
-      new AdminGetUserCommand({
-        UserPoolId: poolId,
-        Username: persona.email,
-      }),
-    );
-  } else {
-    await client.send(
-      new AdminUpdateUserAttributesCommand({
-        UserPoolId: poolId,
-        Username: persona.email,
-        UserAttributes: [
-          { Name: 'email_verified', Value: 'true' },
-          { Name: 'name', Value: persona.fullName },
-        ],
-      }),
-    );
-  }
+  await client.send(
+    new AdminCreateUserCommand({
+      UserPoolId: poolId,
+      Username: persona.email,
+      MessageAction: 'SUPPRESS',
+      TemporaryPassword: password,
+      UserAttributes: [
+        { Name: 'email', Value: persona.email },
+        { Name: 'email_verified', Value: 'true' },
+        { Name: 'name', Value: persona.fullName },
+      ],
+    }),
+  );
 
   await client.send(
     new AdminSetUserPasswordCommand({
@@ -116,7 +100,14 @@ export async function ensureCognitoDemoUser(persona, password = DEMO_PASSWORD) {
     }),
   );
 
-  return { sub: readSub(user), created };
+  const user = await client.send(
+    new AdminGetUserCommand({
+      UserPoolId: poolId,
+      Username: persona.email,
+    }),
+  );
+
+  return { sub: readSub(user), created: true };
 }
 
 export async function remapProfileUserId(conn, oldUserId, newUserId) {
@@ -179,15 +170,11 @@ export async function seedDemoUsers(conn, { password = DEMO_PASSWORD, ensureUser
     }
 
     const currentId = row.rows[0].user_id;
-    if (currentId === persona.seedUserId) {
-      await remapProfileUserId(conn, persona.seedUserId, sub);
-      dbAction = 'remapped';
-    } else if (currentId === sub) {
+    if (currentId === sub) {
       dbAction = 'already_synced';
     } else {
-      throw new Error(
-        `profile for ${persona.email} has unexpected user_id ${currentId} (expected seed ${persona.seedUserId} or sub ${sub})`,
-      );
+      await remapProfileUserId(conn, currentId, sub);
+      dbAction = 'remapped';
     }
 
     results.push({
