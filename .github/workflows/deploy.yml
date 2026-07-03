@@ -21,9 +21,9 @@ on:
         type: string
         default: dev
       action:
-        description: "plan or apply"
+        description: "plan, apply, or destroy"
         type: choice
-        options: [plan, apply]
+        options: [plan, apply, destroy]
         default: plan
       enable_edge:
         description: "Deploy the CloudFront/WAF/SPA edge tier."
@@ -73,6 +73,7 @@ jobs:
         run: terraform init -input=false -backend-config="key=${{ inputs.environment }}.tfstate"
 
       - name: Plan
+        if: ${{ inputs.action != 'destroy' }}
         working-directory: infra
         run: |
           terraform plan -input=false -out=tf.plan \
@@ -85,6 +86,16 @@ jobs:
         if: ${{ inputs.action == 'apply' }}
         working-directory: infra
         run: terraform apply -input=false tf.plan
+
+      - name: Destroy
+        if: ${{ inputs.action == 'destroy' }}
+        working-directory: infra
+        run: |
+          terraform destroy -input=false -auto-approve \
+            -var "environment=${{ inputs.environment }}" \
+            -var "enable_edge=${{ inputs.enable_edge }}" \
+            -var "enable_nat=${{ inputs.enable_nat }}" \
+            -var "enable_simulator=${{ inputs.enable_simulator }}"
 
       # ── Publish the SPA (only on apply + edge) ──────────────────────────────
       # Read the just-applied outputs, build web/ with them baked in as VITE_*,
