@@ -3,6 +3,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { fetchAuthSession } from 'aws-amplify/auth';
+import { E2E_SESSION } from '../e2e/fixtures';
 
 export interface Session {
   orgId: string | null;
@@ -11,9 +12,11 @@ export interface Session {
 }
 
 export function useSession() {
+  const isE2e = import.meta.env.VITE_E2E === '1';
   return useQuery<Session>({
     queryKey: ['session'],
     queryFn: async () => {
+      if (isE2e) return E2E_SESSION;
       const { tokens } = await fetchAuthSession();
       const claims = (tokens?.idToken?.payload ?? {}) as Record<string, unknown>;
       const str = (v: unknown) => (typeof v === 'string' ? v : null);

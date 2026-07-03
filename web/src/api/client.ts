@@ -3,8 +3,10 @@
 // Amplify's exported generics.
 
 import { generateClient } from 'aws-amplify/api';
+import { mockGql } from '../e2e/fixtures';
 
-const client = generateClient();
+const isE2e = import.meta.env.VITE_E2E === '1';
+const client = isE2e ? null : generateClient();
 
 interface GqlResult<T> {
   data?: T;
@@ -19,7 +21,8 @@ interface Observableish<T> {
 }
 
 export async function gql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
-  const res = (await client.graphql({ query, variables })) as GqlResult<T>;
+  if (isE2e) return mockGql<T>(query, variables);
+  const res = (await client!.graphql({ query, variables })) as GqlResult<T>;
   if (res.errors?.length) {
     throw new Error(res.errors.map((e) => e.message).join('; '));
   }
@@ -32,7 +35,8 @@ export function subscribe<T>(
   onData: (value: T) => void,
   onError?: (err: unknown) => void,
 ): { unsubscribe: () => void } {
-  const observable = client.graphql({ query, variables }) as unknown as Observableish<T>;
+  if (isE2e) return { unsubscribe: () => undefined };
+  const observable = client!.graphql({ query, variables }) as unknown as Observableish<T>;
   return observable.subscribe({
     next: (msg) => onData(msg.data),
     error: (err) => onError?.(err),

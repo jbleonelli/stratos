@@ -1,0 +1,492 @@
+/* Adaptiv Design System — Tokens */
+
+/* Akkurat LL — Adaptiv brand font */
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Thin.otf') format('opentype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-ThinItalic.otf') format('opentype');
+  font-weight: 100;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-LightItalic.otf') format('opentype');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Italic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-BoldItalic.otf') format('opentype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-BlackItalic.otf') format('opentype');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  /* accent options */
+  --accent-pink: #ff00b2;
+  --accent-indigo: #20286d;
+  --accent-blue: #2185d0;
+
+  --accent: var(--accent-pink);
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --accent-line: color-mix(in oklch, var(--accent) 40%, transparent);
+
+  /* light surfaces */
+  --bg: #f4f6fa;
+  --bg-grad-a: #e9edf5;
+  --bg-grad-b: #f6e8f1;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f4f9;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text: #0b1020;
+  --text-soft: #3a4161;
+  --text-dim: #6b7390;
+  --text-faint: #9aa1b6;
+
+  /* semantic */
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --risk: #ef4444;
+  --info: #2185d0;
+
+  /* layout */
+  --sidebar-w: 260px;
+  --chat-w: 520px;
+  --pad: 18px;
+  --row-h: 32px;
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  --font: 'Akkurat LL', -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+body.dark {
+  --bg: #0a0d14;
+  --bg-grad-a: #0c1120;
+  --bg-grad-b: #170b1e;
+  --surface: #11151f;
+  --surface-2: #161b28;
+  --surface-3: #1b2130;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #eef1f8;
+  --text-soft: #c1c7d7;
+  --text-dim: #8d94a8;
+  --text-faint: #5c6277;
+  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+}
+
+body.compact {
+  --pad: 14px;
+  --row-h: 28px;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #1a1f2e;
+  color: var(--text);
+  font-family: var(--font);
+}
+body {
+  background:
+    radial-gradient(1200px 800px at 20% 0%, var(--bg-grad-a), transparent 60%),
+    radial-gradient(1000px 700px at 90% 100%, var(--bg-grad-b), transparent 50%), var(--bg);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+body.dark {
+  background:
+    radial-gradient(1200px 800px at 20% 0%, #1a1e3b 0%, transparent 50%),
+    radial-gradient(900px 700px at 100% 100%, #2b0d3a 0%, transparent 50%), #05070d;
+}
+
+/* Co-brand org logo (TopBar, next to the floating menu). Tenant logos
+   tend to be single-color dark wordmarks (e.g. Samsic navy) that read
+   well on the light shell but vanish on the dark one. Knock them out to
+   white in dark mode. A future per-org "dark logo variant" could opt out
+   of this for multi-color marks. */
+body.dark .org-cobrand-logo {
+  filter: brightness(0) invert(1);
+  opacity: 0.92;
+}
+
+/* height: 100dvh tracks the DYNAMIC viewport — i.e. the visible area as the
+   iPad / mobile browser toolbars show and hide. Plain 100vh is the *largest*
+   viewport (toolbars hidden), so a fixed-height shell sized to 100vh hangs its
+   bottom off-screen while the toolbars are up. The 100vh line is the fallback. */
+#root {
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+}
+.screen-h {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* scrollbar — slim light-pink (brand accent at low alpha). Thumb sits
+   flush against the card's inner edge: the old `border: 2px solid
+   transparent` padding-clip trick made it look floating ~2px in from
+   the edge, which JB called out as "not at the edge of the box".
+   2026-05-22.
+
+   Updated 2026-05-25 (PR #660): thumb is transparent by default and
+   appears only when the user is ACTIVELY scrolling. Driven by a body
+   `.is-scrolling` class toggled by App.jsx's scroll detector — much
+   closer to native macOS overlay behavior than the prior hover-based
+   approach, which lit up the scrollbar whenever the cursor crossed
+   the page (e.g., while interacting with the 3D viewer). */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.25s ease;
+}
+/* While the user is scrolling, fade thumbs in. Body class is added on
+   any scroll event and removed ~800ms after the last one (App.jsx). */
+body.is-scrolling ::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--accent) 30%, transparent);
+}
+/* Direct thumb hover (once visible) bumps the colour up — gives users
+   a target for click-drag scrolling. */
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--accent) 55%, transparent);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Firefox — `auto` lets the browser use its native overlay-style
+   scrollbar (which already auto-hides in recent Firefox). Colour
+   only applies if Firefox renders a persistent gutter. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+body.is-scrolling * {
+  scrollbar-color: color-mix(in oklch, var(--accent) 30%, transparent) transparent;
+}
+
+button {
+  font-family: inherit;
+}
+* {
+  box-sizing: border-box;
+}
+
+/* animation keyframes */
+@keyframes merlinPulse {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@keyframes merlinShimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+@keyframes merlinFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes merlinSlideIn {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.merlin-thinking span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  margin: 0 1.5px;
+  animation: merlinDot 1.2s infinite ease-in-out;
+}
+.merlin-thinking span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.merlin-thinking span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes merlinDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Weather widget — animated overlay layers */
+@keyframes merlinDrift {
+  from {
+    transform: translateX(-30%);
+  }
+  to {
+    transform: translateX(140%);
+  }
+}
+@keyframes merlinRainFall {
+  from {
+    transform: translate3d(0, -10%, 0) rotate(15deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  to {
+    transform: translate3d(20%, 140%, 0) rotate(15deg);
+    opacity: 0;
+  }
+}
+@keyframes merlinSnowFall {
+  from {
+    transform: translate3d(0, -10%, 0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  to {
+    transform: translate3d(8%, 140%, 0);
+    opacity: 0;
+  }
+}
+@keyframes merlinTwinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes merlinLightning {
+  0%,
+  96%,
+  100% {
+    opacity: 0;
+  }
+  97% {
+    opacity: 0.85;
+  }
+  98% {
+    opacity: 0.1;
+  }
+  99% {
+    opacity: 0.7;
+  }
+}
+
+/* Widget cell hover-chrome — settings cog + close icons fade in only
+   while the user is hovering or interacting with the cell, so they
+   never permanently overlap widget content. Stays visible when the
+   cell is flipped (settings face is up) since that's an active
+   interaction state the user is clearly engaged with. */
+.widget-cell .widget-chrome {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.widget-cell:hover .widget-chrome,
+.widget-cell:focus-within .widget-chrome,
+.widget-cell.is-flipped .widget-chrome {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* bold variant overlay */
+body.bold-variant {
+  background:
+    radial-gradient(900px 600px at 15% -10%, color-mix(in oklch, var(--accent) 28%, transparent), transparent 50%),
+    radial-gradient(1100px 900px at 110% 110%, #20286d 0%, transparent 55%), #05050e !important;
+}
+body.bold-variant:not(.dark) {
+  color: #eef1f8;
+  --text: #eef1f8;
+  --text-soft: #c9cfde;
+  --text-dim: #878ea3;
+  --text-faint: #5c6277;
+  --surface: rgba(22, 22, 34, 0.72);
+  --surface-2: rgba(30, 30, 44, 0.72);
+  --surface-3: rgba(42, 42, 60, 0.72);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+}
+body.bold-variant .mac-window {
+  background: transparent !important;
+}
+body.bold-variant h1 {
+  font-weight: 900 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.sidebar-row:hover .pin-toggle {
+  opacity: 1;
+}
+.sidebar-row .pin-toggle:hover {
+  color: var(--accent) !important;
+}
+
+/* IconBtn default hover — owned by CSS so it can never get "stuck" the way an
+   imperative element.style mutation did when a click/re-render swallowed the
+   mouseleave (left the bottom-rail settings icon looking permanently selected).
+   active/chromeless IconBtns set their background inline and don't get this class. */
+.mrln-iconbtn {
+  background: transparent;
+  transition: background 0.12s;
+}
+.mrln-iconbtn:hover {
+  background: var(--surface-3);
+}
+
+.merlin-message:hover .merlin-pin {
+  opacity: 1;
+}
+.merlin-message .merlin-pin:hover {
+  color: var(--accent) !important;
+}
+
+/* Leaflet tile filter — used by the EcosystemMapWidget to render its
+   CARTO basemap in monochrome. CARTO light is already minimal; the
+   grayscale pass takes it to true B/W and the small contrast bump
+   keeps roads readable. */
+.merlin-mono-tiles {
+  filter: grayscale(1) contrast(1.05) brightness(1.02);
+}
+
+/* Print: clicking "Generate" with format=PDF on the Reports page
+   invokes window.print(). This stylesheet hoists the report preview
+   out and hides everything else so the printed page is clean. The
+   user picks "Save as PDF" in the browser's print dialog. */
+@media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+  /* Hoist the print target out of its scrolling ancestors. */
+  #merlin-print-target {
+    position: fixed !important;
+    inset: 0 !important;
+    background: white !important;
+    color: black !important;
+    padding: 24px !important;
+    overflow: visible !important;
+    z-index: 2147483647 !important;
+  }
+  #merlin-print-target * {
+    color: black !important;
+    background: white !important;
+    border-color: #ccc !important;
+    box-shadow: none !important;
+  }
+  /* Anything explicitly tagged stays out of print. */
+  .merlin-no-print {
+    display: none !important;
+  }
+  @page {
+    margin: 0.5in;
+  }
+}
+
+/* PWA installed with Window Controls Overlay: the brand gradient title bar
+   fills the OS title-bar strip. Give it a little extra height beyond
+   env(titlebar-area-height) so the app's top-right menu button (Adaptiv "A")
+   and the rest of the top chrome clear the title bar + Chrome's window
+   controls instead of tucking under them. No effect outside an installed WCO
+   window (the selector only matches that display mode). */
+@media (display-mode: window-controls-overlay) {
+  .merlin-wco-titlebar {
+    min-height: calc(env(titlebar-area-height, 0px) + 14px);
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "purpose": "Frozen Merlin customer-app UI baseline for Stratos porting",
+  "capturedAt": "2026-07-03",
+  "sourceCommit": "659d224199aaa0cba0a2b92c25a7787a4b0d178e",
+  "sourceCommitShort": "659d224",
+  "sourceMessage": "fix(sidebar): center icons in the rail (content box now matches 36px icon) (#1222)",
+  "historicalSourceRepo": "github.com/jbleonelli/merlin",
+  "localPath": "reference/merlin-ui-snapshot/",
+  "gitignored": true,
+  "syncPolicy": "never — recapture only via scripts/capture-merlin-ui-snapshot.sh when explicitly requested",
+  "excludes": [
+    ".git",
+    "node_modules",
+    "dist",
+    "infra",
+    "secrets",
+    ".venv-deliverables"
+  ]
+}

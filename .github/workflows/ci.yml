@@ -72,8 +72,16 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Route map drift
+        run: npm run check:routes
       - name: Typecheck + Vite build
         run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+      - name: E2E (hermetic mock API)
+        run: npm run test:e2e
+      - name: Visual clone regression (Merlin snapshot UI)
+        run: npm run test:visual
 
   terraform:
     runs-on: ubuntu-latest

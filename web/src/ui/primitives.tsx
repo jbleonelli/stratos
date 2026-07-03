@@ -1,6 +1,6 @@
 // Shared visual primitives — the Adaptiv component kit, styled entirely through
 // the tokens.css custom properties. Ported from the Adaptiv Design System.
-import type { CSSProperties, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
 import { Icon } from './icons';
 
 const WORDMARK_URL = '/logo-adaptiv.png';
@@ -378,6 +378,7 @@ export function IconBtn({
   title,
   active = false,
   style = {},
+  ...rest
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -385,11 +386,15 @@ export function IconBtn({
   title?: string;
   active?: boolean;
   style?: CSSProperties;
-}) {
+} & ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
       title={title}
+      {...rest}
       className={!active ? 'ds-iconbtn' : undefined}
       style={{
         width: size,

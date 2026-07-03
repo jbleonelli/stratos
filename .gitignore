@@ -46,3 +46,6 @@ npm-debug.log*
 coverage/
 playwright-report/
 test-results/
+
+# Frozen Merlin UI reference (local snapshot — see reference/README.md)
+reference/merlin-ui-snapshot/
