@@ -3,6 +3,12 @@ name: deploy
 # Manual, OIDC-authenticated Terraform runs against a real AWS account.
 # Defaults to `plan`; set action=apply to actually mutate infrastructure.
 #
+# When action=apply AND enable_edge=true, this also builds the React SPA with the
+# stack's Cognito/AppSync outputs baked in (VITE_*), syncs it to the private S3
+# origin, and invalidates CloudFront — so the live UI is reachable after the run.
+# A UI-only redeploy = re-run with apply+enable_edge (Terraform no-ops the infra,
+# then rebuilds + publishes the SPA).
+#
 # Prerequisites (one-time):
 #   1. infra/bootstrap applied  → the S3 tfstate bucket exists
 #   2. infra/github-oidc applied → deploy role exists; put its ARN in the repo
@@ -69,3 +75,45 @@ jobs:
         if: ${{ inputs.action == 'apply' }}
         working-directory: infra
         run: terraform apply -input=false tf.plan
+
+      # ── Publish the SPA (only on apply + edge) ──────────────────────────────
+      # Read the just-applied outputs, build web/ with them baked in as VITE_*,
+      # push to the private S3 origin, and invalidate CloudFront.
+      - name: Read SPA outputs
+        id: spa
+        if: ${{ inputs.action == 'apply' && inputs.enable_edge }}
+        working-directory: infra
+        run: |
+          {
+            echo "bucket=$(terraform output -raw spa_bucket)"
+            echo "distribution_id=$(terraform output -raw cloudfront_distribution_id)"
+            echo "spa_url=$(terraform output -raw spa_url)"
+            echo "user_pool_id=$(terraform output -raw cognito_user_pool_id)"
+            echo "user_pool_client_id=$(terraform output -raw cognito_user_pool_client_id)"
+            echo "graphql_url=$(terraform output -raw graphql_url)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build SPA
+        if: ${{ inputs.action == 'apply' && inputs.enable_edge }}
+        working-directory: web
+        env:
+          VITE_USER_POOL_ID: ${{ steps.spa.outputs.user_pool_id }}
+          VITE_USER_POOL_CLIENT_ID: ${{ steps.spa.outputs.user_pool_client_id }}
+          VITE_GRAPHQL_URL: ${{ steps.spa.outputs.graphql_url }}
+          VITE_AWS_REGION: us-east-1
+        run: npm ci && npm run build
+
+      - name: Publish SPA to S3 + invalidate CloudFront
+        if: ${{ inputs.action == 'apply' && inputs.enable_edge }}
+        working-directory: web
+        run: |
+          # Hashed assets are immutable; index.html must never be cached stale.
+          aws s3 sync dist "s3://${{ steps.spa.outputs.bucket }}" \
+            --delete --cache-control "public,max-age=31536000,immutable" \
+            --exclude index.html
+          aws s3 cp dist/index.html "s3://${{ steps.spa.outputs.bucket }}/index.html" \
+            --cache-control "no-cache"
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.spa.outputs.distribution_id }}" \
+            --paths "/*"
+          echo "SPA published → ${{ steps.spa.outputs.spa_url }}"
