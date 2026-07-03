@@ -12,18 +12,83 @@
 
 import { withClaims, claimsFromIdentity } from './claim-bridge.mjs';
 import { requireOrg } from './authz.mjs';
-import { toOrganization, toEvent, toAsk } from './mappers.mjs';
+import { toOrganization, toMe, toOrgMember, orgMemberByUserId, orgMembersAll, toLocation, toDevice, toEvent, toAgentRun, toOrgMetrics, toAsk } from './mappers.mjs';
 import { defaultEmitter, signalFromEvent } from './event-emitter.mjs';
 
 const one = (res) => res.rows[0] ?? null;
 
+async function fetchOrgMetrics(c) {
+  const orgId = one(await c.query('select public.current_user_org() as id'))?.id;
+  const [openAsks, incidents, severity, decisions, cost, devices, locations, trend] = await Promise.all([
+    c.query(`select count(*)::int as c from public.asks where status = 'open'`),
+    c.query(`select count(*)::int as c from public.events where severity in ('warning', 'critical')`),
+    c.query(`select severity, count(*)::int as count from public.events group by severity`),
+    c.query(`select decision, count(*)::int as count from public.agent_runs group by decision`),
+    c.query(
+      `select coalesce(sum(cost_cents), 0)::int as c
+         from public.agent_runs
+        where created_at > now() - interval '24 hours'`,
+    ),
+    c.query(`select status, count(*)::int as count from public.devices group by status`),
+    c.query(`select count(*)::int as c from public.locations`),
+    c.query(
+      `select to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as day, count(*)::int as count
+         from public.events
+        where created_at > now() - interval '7 days'
+        group by 1
+        order by 1`,
+    ),
+  ]);
+  return toOrgMetrics(orgId, { openAsks, incidents, severity, decisions, cost, devices, locations, trend });
+}
+
 async function run(field, c, args, _claims) {
   const input = args?.input ?? {};
   switch (field) {
+    case 'Query.me':
+      return toMe(
+        one(
+          await c.query(
+            `select p.user_id, p.email, p.full_name, om.role as org_role
+               from public.profiles p
+               join public.organization_members om
+                 on om.user_id = p.user_id and om.org_id = (select public.current_user_org())
+              where p.user_id = (select auth.uid())`,
+          ),
+        ),
+      );
+
     case 'Query.organization':
       return toOrganization(
         one(await c.query('select * from public.organizations where id = (select public.current_user_org())')),
       );
+
+    case 'Query.orgMembers': {
+      const res = await c.query(orgMembersAll());
+      return res.rows.map(toOrgMember);
+    }
+
+    case 'Query.locations': {
+      const res = await c.query(
+        `select l.*,
+                (select count(*) from public.devices d where d.location_id = l.id)::int as device_count
+           from public.locations l
+          order by l.name`,
+      );
+      return res.rows.map(toLocation);
+    }
+
+    case 'Query.devices': {
+      const limit = Math.min(Math.max(args?.limit ?? 200, 1), 500);
+      const res = await c.query(
+        `select * from public.devices
+          where ($1::uuid is null or location_id = $1::uuid)
+          order by name
+          limit $2`,
+        [args?.locationId ?? null, limit],
+      );
+      return res.rows.map(toDevice);
+    }
 
     case 'Query.events': {
       const limit = Math.min(Math.max(args?.limit ?? 50, 1), 200);
@@ -34,12 +99,48 @@ async function run(field, c, args, _claims) {
       return res.rows.map(toEvent);
     }
 
+    case 'Query.incidents': {
+      const limit = Math.min(Math.max(args?.limit ?? 50, 1), 200);
+      const res = await c.query(
+        `select * from public.events
+          where severity in ('warning', 'critical')
+          order by created_at desc
+          limit $1`,
+        [limit],
+      );
+      return res.rows.map(toEvent);
+    }
+
+    case 'Query.agentRuns': {
+      const limit = Math.min(Math.max(args?.limit ?? 50, 1), 200);
+      const res = await c.query(
+        'select * from public.agent_runs order by created_at desc limit $1',
+        [limit],
+      );
+      return res.rows.map(toAgentRun);
+    }
+
+    case 'Query.orgMetrics':
+      return fetchOrgMetrics(c);
+
     case 'Query.asks': {
       const res = await c.query(
         'select * from public.asks where ($1::text is null or status = $1::public.ask_status) order by created_at desc',
         [args?.status ?? null],
       );
       return res.rows.map(toAsk);
+    }
+
+    case 'Mutation.updateOrganization': {
+      await c.query('select public.update_org_name($1)', [input.name]);
+      return toOrganization(
+        one(await c.query('select * from public.organizations where id = (select public.current_user_org())')),
+      );
+    }
+
+    case 'Mutation.updateMemberRole': {
+      await c.query('select public.update_member_role($1, $2::public.org_role)', [input.userId, input.role]);
+      return toOrgMember(one(await c.query(orgMemberByUserId(input.userId), [input.userId])));
     }
 
     case 'Mutation.raiseAsk': {

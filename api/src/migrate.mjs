@@ -17,6 +17,7 @@
 import authz from '../../db/helpers/001_authz.sql';
 import baseline from '../../db/V1_baseline.sql';
 import agentRuntime from '../../db/migrations/002_agent_runtime.sql';
+import admin from '../../db/migrations/003_admin.sql';
 import seed from '../../db/seed/dev.sql';
 import process from 'node:process';
 import { runMigrations } from './migrate-core.mjs';
@@ -26,6 +27,7 @@ const MIGRATIONS = [
   { version: '001_authz', sql: authz },
   { version: 'V1_baseline', sql: baseline },
   { version: '002_agent_runtime', sql: agentRuntime },
+  { version: '003_admin', sql: admin },
   { version: 'dev_seed', sql: seed, seed: true },
 ];
 

@@ -26,6 +26,9 @@ export function useAgentActivity(orgId: string | null) {
         setFeed((prev) => [onAgentActivity, ...prev].slice(0, MAX));
         if (onAgentActivity.askId) qc.invalidateQueries({ queryKey: ['asks'] });
         qc.invalidateQueries({ queryKey: ['events'] });
+        qc.invalidateQueries({ queryKey: ['incidents'] });
+        qc.invalidateQueries({ queryKey: ['agentRuns'] });
+        qc.invalidateQueries({ queryKey: ['orgMetrics'] });
       },
     );
     return () => sub.unsubscribe();

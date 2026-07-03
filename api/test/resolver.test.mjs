@@ -28,6 +28,8 @@ before(async () => {
   pg = new PGlite();
   await pg.exec(await readFile(join(db, 'helpers', '001_authz.sql'), 'utf8'));
   await pg.exec(await readFile(join(db, 'V1_baseline.sql'), 'utf8'));
+  await pg.exec(await readFile(join(db, 'migrations', '002_agent_runtime.sql'), 'utf8'));
+  await pg.exec(await readFile(join(db, 'migrations', '003_admin.sql'), 'utf8'));
   await pg.exec(await readFile(join(db, 'seed', 'dev.sql'), 'utf8'));
   handler = createResolver(async () => pg); // single shared connection, no release
 });
@@ -66,13 +68,114 @@ test('Query.organization returns the caller active org', async () => {
 
 test('Query.events is org-scoped', async () => {
   const events = await handler(ev('Query', 'events', { limit: 50 }, AS.alphaAdmin));
-  assert.equal(events.length, 1);
+  assert.equal(events.length, 2);
   assert.equal(events[0].organizationId, ORG.alpha);
 });
 
 test('Query.events for a platform admin spans tenants', async () => {
   const events = await handler(ev('Query', 'events', {}, AS.platform));
-  assert.equal(events.length, 2);
+  assert.equal(events.length, 3);
+});
+
+test('Query.incidents returns only warning and critical events', async () => {
+  const inc = await handler(ev('Query', 'incidents', {}, AS.alphaAdmin));
+  assert.equal(inc.length, 2);
+  assert.ok(inc.every((e) => e.severity === 'warning' || e.severity === 'critical'));
+  assert.ok(!inc.some((e) => e.severity === 'info'));
+});
+
+test('Query.incidents respects per-user location grants', async () => {
+  const inc = await handler(ev('Query', 'incidents', {}, AS.alphaScoped));
+  assert.equal(inc.length, 1);
+  assert.equal(inc[0].severity, 'warning');
+});
+
+test('Query.agentRuns is org-scoped', async () => {
+  const runs = await handler(ev('Query', 'agentRuns', {}, AS.alphaAdmin));
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].decision, 'ask');
+  assert.equal(runs[0].organizationId, ORG.alpha);
+});
+
+test('Query.agentRuns for a platform admin spans tenants', async () => {
+  const runs = await handler(ev('Query', 'agentRuns', {}, AS.platform));
+  assert.equal(runs.length, 2);
+});
+
+test('Query.orgMetrics aggregates org-scoped KPIs', async () => {
+  const m = await handler(ev('Query', 'orgMetrics', {}, AS.alphaAdmin));
+  assert.equal(m.organizationId, ORG.alpha);
+  assert.equal(m.openAsks, 1);
+  assert.equal(m.incidentsOpen, 2);
+  assert.equal(m.locationCount, 2);
+  assert.equal(m.devicesOnline, 2);
+  assert.equal(m.agentDecisions.find((d) => d.decision === 'ask')?.count, 1);
+  const sev = Object.fromEntries(m.eventsBySeverity.map((s) => [s.severity, s.count]));
+  assert.equal(sev.warning, 1);
+  assert.equal(sev.critical, 1);
+});
+
+test('Query.orgMetrics respects per-user location grants', async () => {
+  const m = await handler(ev('Query', 'orgMetrics', {}, AS.alphaScoped));
+  assert.equal(m.incidentsOpen, 1);
+  assert.equal(m.locationCount, 1);
+  assert.equal(m.devicesOnline, 1);
+});
+
+test('Query.orgMetrics for beta has no open incidents', async () => {
+  const m = await handler(ev('Query', 'orgMetrics', {}, AS.betaAdmin));
+  assert.equal(m.incidentsOpen, 0);
+  assert.equal(m.openAsks, 1);
+  const sev = Object.fromEntries(m.eventsBySeverity.map((s) => [s.severity, s.count]));
+  assert.equal(sev.info, 1);
+  assert.equal(sev.warning ?? 0, 0);
+});
+
+test('Query.me returns the caller org role', async () => {
+  const me = await handler(ev('Query', 'me', {}, AS.alphaAdmin));
+  assert.equal(me.userId, USER.alphaAdmin);
+  assert.equal(me.orgRole, 'owner');
+  assert.equal(me.email, 'admin@alpha.example');
+});
+
+test('Query.orgMembers lists the active org roster with profile fields', async () => {
+  const members = await handler(ev('Query', 'orgMembers', {}, AS.alphaAdmin));
+  assert.equal(members.length, 2);
+  const worker = members.find((m) => m.userId === USER.alphaScoped);
+  assert.equal(worker?.email, 'worker@alpha.example');
+  assert.equal(worker?.orgRole, 'member');
+});
+
+test('Mutation.updateOrganization renames the active org for admins', async () => {
+  const org = await handler(
+    ev('Mutation', 'updateOrganization', { input: { name: 'Alpha Property Group' } }, AS.alphaAdmin),
+  );
+  assert.equal(org.name, 'Alpha Property Group');
+});
+
+test('Mutation.updateOrganization is forbidden for non-admins', async () => {
+  await assert.rejects(
+    handler(ev('Mutation', 'updateOrganization', { input: { name: 'Hacked' } }, AS.alphaScoped)),
+  );
+});
+
+test('Mutation.updateMemberRole lets an owner promote a member', async () => {
+  const m = await handler(
+    ev('Mutation', 'updateMemberRole', { input: { userId: USER.alphaScoped, role: 'admin' } }, AS.alphaAdmin),
+  );
+  assert.equal(m.orgRole, 'admin');
+  // restore for downstream tests
+  await handler(
+    ev('Mutation', 'updateMemberRole', { input: { userId: USER.alphaScoped, role: 'member' } }, AS.alphaAdmin),
+  );
+});
+
+test('Mutation.updateMemberRole is forbidden for non-admins', async () => {
+  await assert.rejects(
+    handler(
+      ev('Mutation', 'updateMemberRole', { input: { userId: USER.alphaAdmin, role: 'member' } }, AS.alphaScoped),
+    ),
+  );
 });
 
 test('Query.asks is org-scoped and filterable by status', async () => {
@@ -84,6 +187,41 @@ test('Query.asks is org-scoped and filterable by status', async () => {
   assert.equal(open.length, 1);
   const answered = await handler(ev('Query', 'asks', { status: 'answered' }, AS.betaAdmin));
   assert.equal(answered.length, 0);
+});
+
+test('Query.locations is org-scoped and carries device counts', async () => {
+  const locs = await handler(ev('Query', 'locations', {}, AS.alphaAdmin));
+  assert.equal(locs.length, 2); // Alpha Tower + Alpha Annex
+  assert.ok(locs.every((l) => l.organizationId === ORG.alpha));
+  const tower = locs.find((l) => l.name === 'Alpha Tower');
+  assert.equal(tower.deviceCount, 1);
+});
+
+test('Query.locations respects per-user location grants', async () => {
+  // alphaScoped (worker) is confined to Alpha Tower.
+  const locs = await handler(ev('Query', 'locations', {}, AS.alphaScoped));
+  assert.equal(locs.length, 1);
+  assert.equal(locs[0].name, 'Alpha Tower');
+});
+
+test('Query.devices is org-scoped', async () => {
+  const devices = await handler(ev('Query', 'devices', {}, AS.alphaAdmin));
+  assert.equal(devices.length, 2);
+  assert.ok(devices.every((d) => d.organizationId === ORG.alpha));
+});
+
+test('Query.devices respects per-user location grants', async () => {
+  const devices = await handler(ev('Query', 'devices', {}, AS.alphaScoped));
+  assert.equal(devices.length, 1); // only the Alpha Tower device
+  assert.equal(devices[0].name, 'Alpha Tower Thermostat');
+});
+
+test('Query.devices filters by locationId', async () => {
+  const locs = await handler(ev('Query', 'locations', {}, AS.alphaAdmin));
+  const annex = locs.find((l) => l.name === 'Alpha Annex');
+  const devices = await handler(ev('Query', 'devices', { locationId: annex.id }, AS.alphaAdmin));
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0].locationId, annex.id);
 });
 
 // ──────────────────────────── Mutations ────────────────────────────────────

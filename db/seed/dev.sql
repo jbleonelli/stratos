@@ -41,9 +41,15 @@ insert into public.devices (id, organization_id, location_id, name, external_id)
   ('de000b01-0000-0000-0000-000000000001', '0b1b0b1b-0000-0000-0000-000000000001', '10c0b001-0000-0000-0000-000000000001', 'Beta Plaza Thermostat',  'beta-plaza-t1');
 
 insert into public.events (id, organization_id, location_id, device_id, kind, severity, external_id, payload) values
-  ('e5e00a01-0000-0000-0000-000000000001', '0a1a0a1a-0000-0000-0000-000000000001', '10c0a001-0000-0000-0000-000000000001', 'de000a01-0000-0000-0000-000000000001', 'device_alert', 'warning', 'alpha-evt-1', '{"temp_c": 26.5}'),
+  ('e5e00a01-0000-0000-0000-000000000001', '0a1a0a1a-0000-0000-0000-000000000001', '10c0a001-0000-0000-0000-000000000001', 'de000a01-0000-0000-0000-000000000001', 'device_alert', 'warning',  'alpha-evt-1', '{"temp_c": 26.5}'),
+  ('e5e00a02-0000-0000-0000-000000000001', '0a1a0a1a-0000-0000-0000-000000000001', '10c0a001-0000-0000-0000-000000000002', 'de000a01-0000-0000-0000-000000000002', 'device_alert', 'critical', 'alpha-evt-2', '{"temp_c": 31.2}'),
   ('e5e00b01-0000-0000-0000-000000000001', '0b1b0b1b-0000-0000-0000-000000000001', '10c0b001-0000-0000-0000-000000000001', 'de000b01-0000-0000-0000-000000000001', 'device_alert', 'info',    'beta-evt-1',  '{"temp_c": 21.0}');
 
 insert into public.asks (id, organization_id, location_id, event_id, question, status) values
   ('a5c00a01-0000-0000-0000-000000000001', '0a1a0a1a-0000-0000-0000-000000000001', '10c0a001-0000-0000-0000-000000000001', 'e5e00a01-0000-0000-0000-000000000001', 'Alpha Tower is warm — lower the setpoint overnight?', 'open'),
   ('a5c00b01-0000-0000-0000-000000000001', '0b1b0b1b-0000-0000-0000-000000000001', '10c0b001-0000-0000-0000-000000000001', 'e5e00b01-0000-0000-0000-000000000001', 'Beta Plaza cleaning window — extend by an hour?',      'open');
+
+-- Agent decision log
+insert into public.agent_runs (id, organization_id, event_id, decision, rationale, cost_cents) values
+  ('a5000a01-0000-0000-0000-000000000001', '0a1a0a1a-0000-0000-0000-000000000001', 'e5e00a01-0000-0000-0000-000000000001', 'ask',  'Temperature elevated — surfaced a question for the operator.', 2),
+  ('a5000b01-0000-0000-0000-000000000001', '0b1b0b1b-0000-0000-0000-000000000001', 'e5e00b01-0000-0000-0000-000000000001', 'skip', 'Within normal operating range — no action needed.', 0);

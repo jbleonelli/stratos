@@ -5,19 +5,97 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { gql } from '../api/client';
 import * as docs from '../api/graphql';
 import type {
+  AgentActivity,
   Ask,
   AskStatus,
+  Device,
   Event,
+  Location,
+  Me,
+  OrgMember,
   Organization,
+  OrgMetrics,
   RaiseAskInput,
   AnswerAskInput,
   IngestEventInput,
+  UpdateOrganizationInput,
+  UpdateMemberRoleInput,
 } from '../api/types';
+
+export function useMe() {
+  return useQuery({
+    queryKey: ['me'],
+    queryFn: async () => (await gql<{ me: Me }>(docs.ME)).me,
+  });
+}
+
+export function useOrgMembers() {
+  return useQuery({
+    queryKey: ['orgMembers'],
+    queryFn: async () => (await gql<{ orgMembers: OrgMember[] }>(docs.ORG_MEMBERS)).orgMembers,
+  });
+}
+
+export function useUpdateOrganization() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateOrganizationInput) =>
+      (await gql<{ updateOrganization: Organization }>(docs.UPDATE_ORGANIZATION, { input })).updateOrganization,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['organization'] });
+    },
+  });
+}
+
+export function useUpdateMemberRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: UpdateMemberRoleInput) =>
+      (await gql<{ updateMemberRole: OrgMember }>(docs.UPDATE_MEMBER_ROLE, { input })).updateMemberRole,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['orgMembers'] }),
+  });
+}
 
 export function useOrganization() {
   return useQuery({
     queryKey: ['organization'],
     queryFn: async () => (await gql<{ organization: Organization | null }>(docs.ORGANIZATION)).organization,
+  });
+}
+
+export function useLocations() {
+  return useQuery({
+    queryKey: ['locations'],
+    queryFn: async () => (await gql<{ locations: Location[] }>(docs.LOCATIONS)).locations,
+  });
+}
+
+export function useDevices(locationId?: string | null) {
+  return useQuery({
+    queryKey: ['devices', locationId ?? 'all'],
+    queryFn: async () =>
+      (await gql<{ devices: Device[] }>(docs.DEVICES, { locationId: locationId ?? null, limit: 200 })).devices,
+  });
+}
+
+export function useOrgMetrics() {
+  return useQuery({
+    queryKey: ['orgMetrics'],
+    queryFn: async () => (await gql<{ orgMetrics: OrgMetrics }>(docs.ORG_METRICS)).orgMetrics,
+  });
+}
+
+export function useIncidents(limit = 50) {
+  return useQuery({
+    queryKey: ['incidents', limit],
+    queryFn: async () => (await gql<{ incidents: Event[] }>(docs.INCIDENTS, { limit })).incidents,
+  });
+}
+
+export function useAgentRuns(limit = 50) {
+  return useQuery({
+    queryKey: ['agentRuns', limit],
+    queryFn: async () => (await gql<{ agentRuns: AgentActivity[] }>(docs.AGENT_RUNS, { limit })).agentRuns,
   });
 }
 

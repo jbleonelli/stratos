@@ -15,6 +15,9 @@ enum EventSeverity { info warning critical }
 enum AskStatus { open answered dismissed expired }
 enum OrgKind { customer platform }
 enum OrgLifecycle { trial active suspended deleted }
+enum OrgRole { owner admin member }
+enum LocationKind { building floor zone room }
+enum DeviceStatus { online offline maintenance }
 
 type Organization {
   id: ID!
@@ -22,6 +25,43 @@ type Organization {
   slug: String!
   kind: OrgKind!
   lifecycleState: OrgLifecycle!
+  createdAt: AWSDateTime!
+}
+
+type Me {
+  userId: ID!
+  email: String!
+  fullName: String
+  orgRole: OrgRole!
+}
+
+type OrgMember {
+  userId: ID!
+  email: String!
+  fullName: String
+  orgRole: OrgRole!
+  userRole: String!
+  joinedAt: AWSDateTime!
+}
+
+type Location {
+  id: ID!
+  organizationId: ID!
+  parentId: ID
+  name: String!
+  kind: LocationKind!
+  deviceCount: Int!
+  createdAt: AWSDateTime!
+}
+
+type Device {
+  id: ID!
+  organizationId: ID!
+  locationId: ID!
+  name: String!
+  kind: String!
+  status: DeviceStatus!
+  externalId: String
   createdAt: AWSDateTime!
 }
 
@@ -96,13 +136,63 @@ input IngestEventInput {
   payload: AWSJSON
 }
 
+type SeverityCount {
+  severity: EventSeverity!
+  count: Int!
+}
+
+type DecisionCount {
+  decision: String!
+  count: Int!
+}
+
+type DayCount {
+  day: AWSDate!
+  count: Int!
+}
+
+# Aggregated org KPIs — scoped by RLS to the caller's active org.
+type OrgMetrics {
+  organizationId: ID!
+  openAsks: Int!
+  incidentsOpen: Int!
+  eventsBySeverity: [SeverityCount!]!
+  agentDecisions: [DecisionCount!]!
+  agentCostCents24h: Int!
+  devicesOnline: Int!
+  devicesOffline: Int!
+  devicesMaintenance: Int!
+  locationCount: Int!
+  eventsTrend7d: [DayCount!]!
+}
+
+input UpdateOrganizationInput {
+  name: String!
+}
+
+input UpdateMemberRoleInput {
+  userId: ID!
+  role: OrgRole!
+}
+
 type Query {
+  me: Me
   organization: Organization
+  orgMembers: [OrgMember!]!
+  locations: [Location!]!
+  devices(locationId: ID, limit: Int = 200): [Device!]!
   events(limit: Int = 50): [Event!]!
+  # Warning + critical events — the operator-facing incident queue.
+  incidents(limit: Int = 50): [Event!]!
+  # Historical agent decision log (live updates arrive via onAgentActivity).
+  agentRuns(limit: Int = 50): [AgentActivity!]!
+  orgMetrics: OrgMetrics!
   asks(status: AskStatus): [Ask!]!
 }
 
 type Mutation {
+  updateOrganization(input: UpdateOrganizationInput!): Organization!
+  updateMemberRole(input: UpdateMemberRoleInput!): OrgMember!
   raiseAsk(input: RaiseAskInput!): Ask!
   answerAsk(input: AnswerAskInput!): Ask!
   ingestEvent(input: IngestEventInput!): Event!

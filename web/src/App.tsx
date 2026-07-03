@@ -1,5 +1,5 @@
-import { Dashboard } from './components/Dashboard';
+import { Workspace } from './components/Workspace';
 
 export default function App({ signOut }: { signOut: () => void }) {
-  return <Dashboard signOut={signOut} />;
+  return <Workspace signOut={signOut} />;
 }

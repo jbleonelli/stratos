@@ -1,0 +1,275 @@
+/* Adaptiv Design System — Tokens (the design "alphabet").
+   Colour, type, spacing, surfaces and motion primitives every component reads
+   via CSS custom properties. Ported into Stratos as the shared visual language. */
+
+/* Akkurat LL — Adaptiv brand font */
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Thin.otf') format('opentype');
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-ThinItalic.otf') format('opentype');
+  font-weight: 100;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-LightItalic.otf') format('opentype');
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Italic.otf') format('opentype');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-BoldItalic.otf') format('opentype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-Black.otf') format('opentype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Akkurat LL';
+  src: url('/fonts/AkkuratLL-BlackItalic.otf') format('opentype');
+  font-weight: 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  /* accent options */
+  --accent-pink: #ff00b2;
+  --accent-indigo: #20286d;
+  --accent-blue: #2185d0;
+
+  --accent: var(--accent-pink);
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --accent-line: color-mix(in oklch, var(--accent) 40%, transparent);
+
+  /* light surfaces */
+  --bg: #f4f6fa;
+  --bg-grad-a: #e9edf5;
+  --bg-grad-b: #f6e8f1;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --surface-3: #f1f4f9;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text: #0b1020;
+  --text-soft: #3a4161;
+  --text-dim: #6b7390;
+  --text-faint: #9aa1b6;
+
+  /* semantic */
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --risk: #ef4444;
+  --info: #2185d0;
+
+  /* layout */
+  --sidebar-w: 240px;
+  --pad: 18px;
+  --row-h: 32px;
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  --font: 'Akkurat LL', -apple-system, BlinkMacSystemFont, 'SF Pro', 'Helvetica Neue', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Amplify Authenticator — brand it to the Adaptiv accent */
+  --amplify-colors-brand-primary-80: var(--accent);
+  --amplify-colors-brand-primary-90: var(--accent-indigo);
+  --amplify-colors-brand-primary-100: var(--accent-indigo);
+  --amplify-fonts-default-variable: var(--font);
+  --amplify-fonts-default-static: var(--font);
+  --amplify-components-authenticator-router-box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+  --amplify-components-authenticator-router-border-color: var(--border);
+  --amplify-radii-medium: 10px;
+}
+
+body.dark {
+  --bg: #0a0d14;
+  --bg-grad-a: #0c1120;
+  --bg-grad-b: #170b1e;
+  --surface: #11151f;
+  --surface-2: #161b28;
+  --surface-3: #1b2130;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #eef1f8;
+  --text-soft: #c1c7d7;
+  --text-dim: #8d94a8;
+  --text-faint: #5c6277;
+  --accent-soft: color-mix(in oklch, var(--accent) 18%, transparent);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+}
+body {
+  background:
+    radial-gradient(1200px 800px at 20% 0%, var(--bg-grad-a), transparent 60%),
+    radial-gradient(1000px 700px at 90% 100%, var(--bg-grad-b), transparent 50%), var(--bg);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+body.dark {
+  background:
+    radial-gradient(1200px 800px at 20% 0%, #1a1e3b 0%, transparent 50%),
+    radial-gradient(900px 700px at 100% 100%, #2b0d3a 0%, transparent 50%), #05070d;
+}
+
+#root {
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+}
+.screen-h {
+  height: 100vh;
+  height: 100dvh;
+}
+
+* {
+  box-sizing: border-box;
+}
+button {
+  font-family: inherit;
+}
+
+/* scrollbar — slim brand-accent overlay, appears on hover */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--accent) 22%, transparent);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--accent) 45%, transparent);
+}
+
+/* motion primitives */
+@keyframes ds-pulse {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@keyframes ds-disk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ds-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+@keyframes ds-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes ds-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* IconBtn default hover — owned by CSS so it can't get "stuck". */
+.ds-iconbtn {
+  background: transparent;
+  transition: background 0.12s;
+}
+.ds-iconbtn:hover {
+  background: var(--surface-3);
+}
+
+/* sidebar nav rows */
+.ds-nav-row {
+  transition: background 0.12s, color 0.12s;
+}
+.ds-nav-row:hover {
+  background: var(--surface-3);
+}
+
+input,
+textarea {
+  font-family: inherit;
+}
+
+/* Amplify Authenticator — centered on the branded gradient shell */
+[data-amplify-authenticator] {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
