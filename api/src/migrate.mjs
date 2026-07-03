@@ -8,6 +8,9 @@
 // Invoke with { "applySeed": true } (or env APPLY_SEED=true) to also load the
 // deterministic dev/demo seed — never in production.
 //
+// Invoke with { "seedDemoUsers": true } after applySeed to create Cognito demo
+// logins (admin@alpha.example / Stratos-Demo1!, etc.) and remap profile ids.
+//
 // Onboarding path: invoke with
 //   { "linkUser": { "sub": "<cognito-sub>", "email": "...", "orgId": "<uuid>" } }
 // to link a Cognito identity to an org (profile + membership upsert). This is how
@@ -30,6 +33,7 @@ import seed from '../../db/seed/dev.sql';
 import process from 'node:process';
 import { runMigrations } from './migrate-core.mjs';
 import { getConnection } from './pg-client.mjs';
+import { seedDemoUsers } from './seed-demo-users.mjs';
 
 const MIGRATIONS = [
   { version: '001_authz', sql: authz },
@@ -72,8 +76,16 @@ export async function handler(event = {}) {
       const result = await linkUser(conn, event.linkUser);
       return { ok: true, ...result };
     }
+    if (event.seedDemoUsers === true) {
+      const demo = await seedDemoUsers(conn);
+      return { ok: true, demo };
+    }
     const applySeed = event.applySeed === true || process.env.APPLY_SEED === 'true';
     const result = await runMigrations(conn, MIGRATIONS, { applySeed });
+    if (event.seedDemoUsersAfterSeed === true) {
+      const demo = await seedDemoUsers(conn);
+      return { ok: true, ...result, demo };
+    }
     return { ok: true, ...result };
   } finally {
     await conn.release?.();

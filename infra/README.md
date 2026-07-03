@@ -57,6 +57,9 @@ terraform apply -var-file=clients/dev.tfvars
 aws lambda invoke --function-name "$(terraform output -raw migrate_lambda_name)" \
   --payload '{"applySeed":true}' --cli-binary-format raw-in-base64-out /dev/stdout
 
+# 3b. create Cognito demo logins (admin@alpha.example / Stratos-Demo1!, etc.)
+../scripts/seed-demo-users.sh "$(terraform output -raw migrate_lambda_name)"
+
 # 4. build + publish the SPA (see web/README.md)
 cd ../web && npm ci && npm run build
 aws s3 sync dist/ "s3://$(cd ../infra && terraform output -raw spa_bucket)/" --delete

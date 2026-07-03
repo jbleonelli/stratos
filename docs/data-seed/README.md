@@ -27,6 +27,10 @@ generated data — it is not imported from any external system.
 | Cognito user pool | one user per persona, custom attributes (`organization_id`, `platform_role`) |
 | S3 | a few sample blobs (ticket photos, branding) where a flow needs them |
 
+**Demo logins (dev only):** after `applySeed`, run `scripts/seed-demo-users.sh`
+to create Cognito users and sync profile ids. Password for all personas:
+`Stratos-Demo1!` — see script output for emails.
+
 Personas cover the tenancy matrix: an org-wide admin, a location-scoped worker, a
 second-org admin (for cross-tenant negative tests), and a platform admin.
 

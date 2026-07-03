@@ -37,6 +37,10 @@ on:
         description: "Scheduled signal simulator that drives the agent loop."
         type: boolean
         default: false
+      seed_demo_users:
+        description: "After apply: run migrate + dev seed + Cognito demo logins (dev/demo only)."
+        type: boolean
+        default: false
 
 permissions:
   id-token: write # required for OIDC
@@ -86,6 +90,22 @@ jobs:
         if: ${{ inputs.action == 'apply' }}
         working-directory: infra
         run: terraform apply -input=false tf.plan
+
+      - name: Migrate DB and seed demo Cognito users
+        if: ${{ inputs.action == 'apply' && inputs.seed_demo_users }}
+        working-directory: infra
+        run: |
+          FN=$(terraform output -raw migrate_lambda_name)
+          echo "Invoking ${FN} (applySeed + seedDemoUsersAfterSeed)…"
+          aws lambda invoke \
+            --function-name "$FN" \
+            --payload '{"applySeed":true,"seedDemoUsersAfterSeed":true}' \
+            --cli-binary-format raw-in-base64-out \
+            /dev/stdout
+          echo ""
+          echo "Demo logins — password for all: Stratos-Demo1!"
+          echo "  admin@alpha.example, worker@alpha.example, admin@beta.example,"
+          echo "  tech@swift.example, staff@adaptiv.example"
 
       - name: Destroy
         if: ${{ inputs.action == 'destroy' }}

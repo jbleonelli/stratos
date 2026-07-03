@@ -269,7 +269,7 @@ resource "aws_lambda_function" "migrate" {
     security_group_ids = [var.security_group_id]
   }
 
-  environment { variables = local.db_env }
+  environment { variables = merge(local.db_env, var.cognito_user_pool_id != "" ? { COGNITO_USER_POOL_ID = var.cognito_user_pool_id } : {}) }
 
   depends_on = [
     aws_iam_role_policy_attachment.basic,
