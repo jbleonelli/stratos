@@ -37,6 +37,7 @@ module "lambda" {
   db_secret_arn     = module.aurora.credentials_secret_arn
   db_host           = module.aurora.cluster_endpoint
   db_name           = module.aurora.database_name
+  bedrock_model_id  = var.bedrock_model_id
 }
 
 module "appsync" {

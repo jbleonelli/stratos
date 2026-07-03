@@ -56,3 +56,9 @@ variable "enable_nat" {
   description = "Give private subnets internet egress via NAT (needed for the agent worker's AppSync push-to-UI and other non-PrivateLink calls). Off by default to avoid idle NAT cost."
   default     = false
 }
+
+variable "bedrock_model_id" {
+  type        = string
+  description = "Bedrock model / cross-region inference profile the agent's act path invokes. The account must have model access enabled for it. Empty → the code default in api/src/bedrock.mjs."
+  default     = "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+}

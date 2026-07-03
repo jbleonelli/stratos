@@ -40,6 +40,12 @@ variable "log_retention_days" {
   default = 14
 }
 
+variable "bedrock_model_id" {
+  type        = string
+  default     = ""
+  description = "Overrides the agent reasoner's Bedrock model id (BEDROCK_MODEL_ID). Empty → the code default."
+}
+
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
@@ -67,10 +73,13 @@ locals {
 
   # The agent worker publishes activity to AppSync; it looks up the GraphQL URL
   # from this SSM parameter (written by the appsync module). Using the static
-  # parameter name here avoids a lambda↔appsync dependency cycle.
-  worker_env = merge(local.db_env, {
-    APPSYNC_URL_PARAM = "/stratos/${var.environment}/appsync/graphql-url"
-  })
+  # parameter name here avoids a lambda↔appsync dependency cycle. A non-empty
+  # bedrock_model_id overrides the reasoner's model (else the code default).
+  worker_env = merge(
+    local.db_env,
+    { APPSYNC_URL_PARAM = "/stratos/${var.environment}/appsync/graphql-url" },
+    var.bedrock_model_id != "" ? { BEDROCK_MODEL_ID = var.bedrock_model_id } : {},
+  )
 }
 
 data "archive_file" "bundle" {

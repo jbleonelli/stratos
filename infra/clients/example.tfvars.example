@@ -7,3 +7,6 @@ vpc_cidr               = "10.20.0.0/16"
 db_min_capacity        = "0.5"
 db_max_capacity        = "4"
 db_deletion_protection = false
+enable_edge            = true                                       # S3+CloudFront+WAF SPA tier; false = backend only
+enable_nat             = false                                      # true to give the agent worker internet egress (AppSync push, Bedrock)
+bedrock_model_id       = "us.anthropic.claude-3-5-sonnet-20241022-v2:0" # account must have model access enabled
