@@ -20,6 +20,7 @@ import type {
   IngestEventInput,
   UpdateOrganizationInput,
   UpdateMemberRoleInput,
+  SetMemberLocationGrantsInput,
 } from '../api/types';
 
 export function useMe() {
@@ -52,6 +53,16 @@ export function useUpdateMemberRole() {
   return useMutation({
     mutationFn: async (input: UpdateMemberRoleInput) =>
       (await gql<{ updateMemberRole: OrgMember }>(docs.UPDATE_MEMBER_ROLE, { input })).updateMemberRole,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['orgMembers'] }),
+  });
+}
+
+export function useSetMemberLocationGrants() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: SetMemberLocationGrantsInput) =>
+      (await gql<{ setMemberLocationGrants: OrgMember }>(docs.SET_MEMBER_LOCATION_GRANTS, { input }))
+        .setMemberLocationGrants,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['orgMembers'] }),
   });
 }

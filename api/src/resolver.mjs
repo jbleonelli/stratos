@@ -143,6 +143,14 @@ async function run(field, c, args, _claims) {
       return toOrgMember(one(await c.query(orgMemberByUserId(input.userId), [input.userId])));
     }
 
+    case 'Mutation.setMemberLocationGrants': {
+      await c.query('select public.set_member_location_grants($1, $2::uuid[])', [
+        input.userId,
+        input.locationIds ?? [],
+      ]);
+      return toOrgMember(one(await c.query(orgMemberByUserId(input.userId), [input.userId])));
+    }
+
     case 'Mutation.raiseAsk': {
       const id = one(
         await c.query('select public.raise_ask($1, $2, $3) as id', [

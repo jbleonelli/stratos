@@ -42,6 +42,9 @@ type OrgMember {
   orgRole: OrgRole!
   userRole: String!
   joinedAt: AWSDateTime!
+  # Empty locationGrantIds with orgWideAccess=true → unrestricted org access.
+  locationGrantIds: [ID!]!
+  orgWideAccess: Boolean!
 }
 
 type Location {
@@ -175,6 +178,11 @@ input UpdateMemberRoleInput {
   role: OrgRole!
 }
 
+input SetMemberLocationGrantsInput {
+  userId: ID!
+  locationIds: [ID!]!
+}
+
 type Query {
   me: Me
   organization: Organization
@@ -193,6 +201,7 @@ type Query {
 type Mutation {
   updateOrganization(input: UpdateOrganizationInput!): Organization!
   updateMemberRole(input: UpdateMemberRoleInput!): OrgMember!
+  setMemberLocationGrants(input: SetMemberLocationGrantsInput!): OrgMember!
   raiseAsk(input: RaiseAskInput!): Ask!
   answerAsk(input: AnswerAskInput!): Ask!
   ingestEvent(input: IngestEventInput!): Event!

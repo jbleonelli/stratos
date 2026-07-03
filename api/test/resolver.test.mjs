@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { createResolver } from '../src/resolver.mjs';
 import { ForbiddenError, UnauthenticatedError } from '../src/authz.mjs';
-import { ORG, USER, ASK } from '../../db/proof/fixtures.mjs';
+import { ORG, USER, ASK, LOC } from '../../db/proof/fixtures.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const db = join(here, '..', '..', 'db');
@@ -30,6 +30,7 @@ before(async () => {
   await pg.exec(await readFile(join(db, 'V1_baseline.sql'), 'utf8'));
   await pg.exec(await readFile(join(db, 'migrations', '002_agent_runtime.sql'), 'utf8'));
   await pg.exec(await readFile(join(db, 'migrations', '003_admin.sql'), 'utf8'));
+  await pg.exec(await readFile(join(db, 'migrations', '004_location_grants_admin.sql'), 'utf8'));
   await pg.exec(await readFile(join(db, 'seed', 'dev.sql'), 'utf8'));
   handler = createResolver(async () => pg); // single shared connection, no release
 });
@@ -144,6 +145,52 @@ test('Query.orgMembers lists the active org roster with profile fields', async (
   const worker = members.find((m) => m.userId === USER.alphaScoped);
   assert.equal(worker?.email, 'worker@alpha.example');
   assert.equal(worker?.orgRole, 'member');
+  assert.equal(worker?.orgWideAccess, false);
+  assert.deepEqual(worker?.locationGrantIds, [LOC.alphaTower]);
+  const admin = members.find((m) => m.userId === USER.alphaAdmin);
+  assert.equal(admin?.orgWideAccess, true);
+  assert.deepEqual(admin?.locationGrantIds, []);
+});
+
+test('Mutation.setMemberLocationGrants lets an admin widen a member to org-wide', async () => {
+  const m = await handler(
+    ev('Mutation', 'setMemberLocationGrants', { input: { userId: USER.alphaScoped, locationIds: [] } }, AS.alphaAdmin),
+  );
+  assert.equal(m.orgWideAccess, true);
+  assert.deepEqual(m.locationGrantIds, []);
+  const scopedIncidents = await handler(ev('Query', 'incidents', {}, AS.alphaScoped));
+  assert.equal(scopedIncidents.length, 2);
+  // restore scoped worker
+  await handler(
+    ev('Mutation', 'setMemberLocationGrants', {
+      input: { userId: USER.alphaScoped, locationIds: [LOC.alphaTower] },
+    }, AS.alphaAdmin),
+  );
+});
+
+test('Mutation.setMemberLocationGrants lets an admin add locations', async () => {
+  const m = await handler(
+    ev('Mutation', 'setMemberLocationGrants', {
+      input: { userId: USER.alphaScoped, locationIds: [LOC.alphaTower, LOC.alphaAnnex] },
+    }, AS.alphaAdmin),
+  );
+  assert.equal(m.orgWideAccess, false);
+  assert.deepEqual(m.locationGrantIds.sort(), [LOC.alphaAnnex, LOC.alphaTower].sort());
+  await handler(
+    ev('Mutation', 'setMemberLocationGrants', {
+      input: { userId: USER.alphaScoped, locationIds: [LOC.alphaTower] },
+    }, AS.alphaAdmin),
+  );
+});
+
+test('Mutation.setMemberLocationGrants is forbidden for non-admins', async () => {
+  await assert.rejects(
+    handler(
+      ev('Mutation', 'setMemberLocationGrants', {
+        input: { userId: USER.alphaScoped, locationIds: [LOC.alphaAnnex] },
+      }, AS.alphaScoped),
+    ),
+  );
 });
 
 test('Mutation.updateOrganization renames the active org for admins', async () => {

@@ -9,7 +9,9 @@ export const ME = /* GraphQL */ `
 
 export const ORG_MEMBERS = /* GraphQL */ `
   query OrgMembers {
-    orgMembers { userId email fullName orgRole userRole joinedAt }
+    orgMembers {
+      userId email fullName orgRole userRole joinedAt locationGrantIds orgWideAccess
+    }
   }
 `;
 
@@ -21,7 +23,17 @@ export const UPDATE_ORGANIZATION = /* GraphQL */ `
 
 export const UPDATE_MEMBER_ROLE = /* GraphQL */ `
   mutation UpdateMemberRole($input: UpdateMemberRoleInput!) {
-    updateMemberRole(input: $input) { userId email fullName orgRole userRole joinedAt }
+    updateMemberRole(input: $input) {
+      userId email fullName orgRole userRole joinedAt locationGrantIds orgWideAccess
+    }
+  }
+`;
+
+export const SET_MEMBER_LOCATION_GRANTS = /* GraphQL */ `
+  mutation SetMemberLocationGrants($input: SetMemberLocationGrantsInput!) {
+    setMemberLocationGrants(input: $input) {
+      userId email fullName orgRole userRole joinedAt locationGrantIds orgWideAccess
+    }
   }
 `;
 

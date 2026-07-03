@@ -32,6 +32,8 @@ export interface OrgMember {
   orgRole: OrgRole;
   userRole: string;
   joinedAt: string;
+  locationGrantIds: string[];
+  orgWideAccess: boolean;
 }
 
 export interface SeverityCount {
@@ -150,4 +152,9 @@ export interface UpdateOrganizationInput {
 export interface UpdateMemberRoleInput {
   userId: string;
   role: OrgRole;
+}
+
+export interface SetMemberLocationGrantsInput {
+  userId: string;
+  locationIds: string[];
 }

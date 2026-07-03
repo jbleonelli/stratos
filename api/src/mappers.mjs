@@ -23,18 +23,33 @@ export const toMe = (r) =>
     orgRole: r.org_role,
   };
 
-export const toOrgMember = (r) =>
-  r && {
+export const toOrgMember = (r) => {
+  if (!r) return null;
+  const grantIds = Array.isArray(r.location_grant_ids)
+    ? r.location_grant_ids.map(String)
+    : r.location_grant_ids
+      ? [String(r.location_grant_ids)]
+      : [];
+  return {
     userId: r.user_id,
     email: r.email,
     fullName: r.full_name,
     orgRole: r.org_role,
     userRole: r.user_role,
     joinedAt: iso(r.joined_at),
+    locationGrantIds: grantIds,
+    orgWideAccess: grantIds.length === 0,
   };
+};
 
 const ORG_MEMBER_SELECT = `
-  select om.user_id, om.role as org_role, om.joined_at, p.email, p.full_name, p.role as user_role
+  select om.user_id, om.role as org_role, om.joined_at, p.email, p.full_name, p.role as user_role,
+         coalesce(
+           (select array_agg(g.location_id order by g.location_id)
+              from public.user_location_grants g
+             where g.user_id = om.user_id and g.organization_id = om.org_id),
+           '{}'::uuid[]
+         ) as location_grant_ids
   from public.organization_members om
   join public.profiles p on p.user_id = om.user_id
   where om.org_id = (select public.current_user_org())
